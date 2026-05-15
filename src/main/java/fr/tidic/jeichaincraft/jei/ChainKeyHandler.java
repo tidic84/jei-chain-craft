@@ -20,11 +20,12 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
  * stack. Pickup order:
  *   1. Slot under the mouse on a vanilla container screen (inventory, chest,
  *      crafting table, etc.). Works without JEI being involved at all.
- *   2. The JEI ingredient list overlay (right side panel).
- *   3. The JEI bookmark overlay.
+ *   2. The JEI recipe view.
+ *   3. The JEI ingredient list overlay (right side panel).
+ *   4. The JEI bookmark overlay.
  *
- * Deliberately does NOT pick from the JEI recipe-view screen — the chain
- * tree is meant to be opened on items, not on recipes.
+ * There is intentionally no recipe-view decorator here: the feature is
+ * hotkey-only, so no "C" is drawn on top of JEI's recipe UI.
  */
 @EventBusSubscriber(modid = JEIChainCraftMod.MODID, value = Dist.CLIENT)
 public class ChainKeyHandler {
@@ -61,6 +62,11 @@ public class ChainKeyHandler {
 
     private static ItemStack pickFromJei() {
         if (jeiRuntime == null) return ItemStack.EMPTY;
+        ItemStack recipes = jeiRuntime.getRecipesGui()
+                .getIngredientUnderMouse(VanillaTypes.ITEM_STACK)
+                .orElse(ItemStack.EMPTY);
+        if (!recipes.isEmpty()) return recipes;
+
         ItemStack list = jeiRuntime.getIngredientListOverlay()
                 .getIngredientUnderMouse(VanillaTypes.ITEM_STACK);
         if (list != null && !list.isEmpty()) return list;

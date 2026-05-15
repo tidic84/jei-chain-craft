@@ -10,6 +10,7 @@ The point: modpacks where figuring out "what do I actually need to farm" takes t
 
 - Press `C` while hovering an item. Works on:
   - any slot in your inventory or in a container,
+  - JEI recipe views,
   - JEI's right-side ingredient list,
   - JEI's bookmarks.
 - The quantity field is what you want to **craft**, not the total to have. `qty = 2` with one already in your pack means crafting 2 more, ending with 3.
