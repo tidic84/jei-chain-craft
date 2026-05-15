@@ -9,6 +9,8 @@
   "jeichaincraft.screen.tree.quantity": "Qty",
   "jeichaincraft.screen.picker.title": "Pick a recipe for %s",
   "jeichaincraft.button.stack": "Stack",
+  "jeichaincraft.button.dump": "Dump",
+  "jeichaincraft.button.reset_prefs": "Reset prefs",
   "jeichaincraft.tooltip.ingredients": "Ingredients:",
   "jeichaincraft.executor.running": "Executing...",
   "jeichaincraft.executor.error.no_player": "Player not in world.",

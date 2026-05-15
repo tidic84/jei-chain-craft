@@ -23,6 +23,14 @@ public class PreferenceManager {
         chosen.remove(itemId);
     }
 
+    public void clear() {
+        chosen.clear();
+    }
+
+    public int size() {
+        return chosen.size();
+    }
+
     public RecipeHolder<?> choose(ResourceLocation itemId, List<RecipeHolder<?>> candidates) {
         ResourceLocation preferred = chosen.get(itemId);
         if (preferred != null) {

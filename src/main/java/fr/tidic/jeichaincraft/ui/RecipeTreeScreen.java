@@ -95,10 +95,18 @@ public class RecipeTreeScreen extends Screen {
         abortButton = Button.builder(Component.translatable("jeichaincraft.button.abort"),
                         b -> CraftExecutor.cancel())
                 .bounds(124, y, 110, 20).build();
+        Button dump = Button.builder(Component.translatable("jeichaincraft.button.dump"),
+                        b -> RecipeLookup.dumpDebug(targetStack))
+                .bounds(240, y, 60, 20).build();
+        Button resetPrefs = Button.builder(Component.translatable("jeichaincraft.button.reset_prefs"),
+                        b -> { prefs.clear(); rebuildTree(); })
+                .bounds(304, y, 80, 20).build();
         Button close = Button.builder(Component.translatable("gui.done"), b -> this.onClose())
                 .bounds(this.width - 80, y, 72, 20).build();
         addRenderableWidget(executeButton);
         addRenderableWidget(abortButton);
+        addRenderableWidget(dump);
+        addRenderableWidget(resetPrefs);
         addRenderableWidget(close);
 
         refreshButtons();

@@ -2,6 +2,7 @@ package fr.tidic.jeichaincraft.jei;
 
 import fr.tidic.jeichaincraft.JEIChainCraftMod;
 import fr.tidic.jeichaincraft.client.KeyBindings;
+import fr.tidic.jeichaincraft.core.ItemId;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.world.item.ItemStack;
@@ -33,6 +34,8 @@ public class RecipeScreenClickHandler {
         if (!KeyBindings.matches(event.getKeyCode(), event.getScanCode())) return;
 
         ItemStack hovered = pickHovered();
+        JEIChainCraftMod.LOGGER.info("C pressed; pickHovered -> {} (count={})",
+                hovered.isEmpty() ? "EMPTY" : ItemId.of(hovered), hovered.getCount());
         if (hovered.isEmpty()) return;
 
         ChainButtonDecorator.openTreeFor(hovered);

@@ -91,4 +91,49 @@ public final class RecipeLookup {
         ItemStack out = holder.value().getResultItem(mc.level.registryAccess());
         return Math.max(1, out.getCount());
     }
+
+    /**
+     * Verbose dump used by the Debug button in the tree screen. Walks every
+     * recipe in the manager (not just matching ones), logging output, type,
+     * filtered-or-not, and full ingredient list for anything that matches the
+     * target. Use this to understand which recipe the algorithm actually chose
+     * when the tree looks wrong.
+     */
+    public static void dumpDebug(ItemStack target) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) {
+            JEIChainCraftMod.LOGGER.warn("dumpDebug: no level");
+            return;
+        }
+        RecipeManager rm = mc.level.getRecipeManager();
+        JEIChainCraftMod.LOGGER.info("===== DUMP for target {} =====", target.getItem());
+        int totalScanned = 0;
+        int totalMatched = 0;
+        for (RecipeHolder<?> holder : rm.getRecipes()) {
+            totalScanned++;
+            Recipe<?> recipe = holder.value();
+            ItemStack out = recipe.getResultItem(mc.level.registryAccess());
+            if (out.isEmpty() || !ItemStack.isSameItem(out, target)) continue;
+            totalMatched++;
+            String type = recipe.getClass().getSimpleName();
+            boolean isCrafting = recipe instanceof CraftingRecipe;
+            boolean selfRef = selfReferencing(recipe, target);
+            JEIChainCraftMod.LOGGER.info("  MATCH id={} type={} crafting={} self-ref={}",
+                    holder.id(), type, isCrafting, selfRef);
+            int slotIdx = 0;
+            for (Ingredient ing : recipe.getIngredients()) {
+                if (ing.isEmpty()) { slotIdx++; continue; }
+                StringBuilder sb = new StringBuilder();
+                for (ItemStack item : ing.getItems()) {
+                    if (sb.length() > 0) sb.append(", ");
+                    sb.append(item.getItem());
+                }
+                JEIChainCraftMod.LOGGER.info("      ing[{}] = [{}] test(target)={}",
+                        slotIdx, sb, ing.test(target));
+                slotIdx++;
+            }
+        }
+        JEIChainCraftMod.LOGGER.info("===== DUMP done: scanned={} matched={} =====",
+                totalScanned, totalMatched);
+    }
 }

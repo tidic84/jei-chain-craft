@@ -9,6 +9,8 @@
   "jeichaincraft.screen.tree.quantity": "Qte",
   "jeichaincraft.screen.picker.title": "Choisir une recette pour %s",
   "jeichaincraft.button.stack": "Stack",
+  "jeichaincraft.button.dump": "Dump",
+  "jeichaincraft.button.reset_prefs": "Reset prefs",
   "jeichaincraft.tooltip.ingredients": "Ingredients:",
   "jeichaincraft.executor.running": "Execution...",
   "jeichaincraft.executor.error.no_player": "Joueur absent du monde.",
