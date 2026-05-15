@@ -1,0 +1,18 @@
+{
+  "key.categories.jeichaincraft": "JEI Chain Craft",
+  "key.jeichaincraft.open_chain": "Open chain tree",
+  "jeichaincraft.button.chain.tooltip": "Open recursive crafting tree (or press C)",
+  "jeichaincraft.button.execute": "Execute chain",
+  "jeichaincraft.button.abort": "Abort",
+  "jeichaincraft.screen.tree.title": "Crafting Chain",
+  "jeichaincraft.screen.tree.base_resources": "Base resources",
+  "jeichaincraft.screen.tree.quantity": "Qty",
+  "jeichaincraft.screen.picker.title": "Pick a recipe for %s",
+  "jeichaincraft.button.stack": "Stack",
+  "jeichaincraft.tooltip.ingredients": "Ingredients:",
+  "jeichaincraft.executor.running": "Executing...",
+  "jeichaincraft.executor.error.no_player": "Player not in world.",
+  "jeichaincraft.executor.error.no_menu": "Container menu closed.",
+  "jeichaincraft.executor.error.no_handler": "Open a crafting table (or your inventory) first.",
+  "jeichaincraft.executor.error.nothing_to_craft": "Nothing to craft — all items already in inventory."
+}

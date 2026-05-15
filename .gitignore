@@ -32,6 +32,10 @@ bin/
 ### Mac OS ###
 .DS_Store
 
+### Local docs (not shared) ###
+CLAUDE.md
+.claude/
+
 ### Minecraft Modding ###
 run/
 !**/src/**/run/
