@@ -13,6 +13,8 @@
   "jeichaincraft.button.reset_prefs": "Reset prefs",
   "jeichaincraft.tooltip.ingredients": "Ingredients:",
   "jeichaincraft.executor.running": "Executing...",
+  "jeichaincraft.executor.done": "Done.",
+  "jeichaincraft.executor.aborted": "Aborted.",
   "jeichaincraft.executor.error.no_player": "Player not in world.",
   "jeichaincraft.executor.error.no_menu": "Container menu closed.",
   "jeichaincraft.executor.error.no_handler": "Open a crafting table (or your inventory) first.",

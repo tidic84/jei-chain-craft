@@ -35,7 +35,11 @@ public final class CraftExecutor {
     }
 
     public static void cancel() {
-        if (active != null) active.state = State.ABORTED;
+        if (active != null && active.isRunning()) active.state = State.ABORTED;
+    }
+
+    public boolean isRunning() {
+        return state != State.DONE && state != State.ABORTED;
     }
 
     private final List<CraftStep> steps;
@@ -62,10 +66,9 @@ public final class CraftExecutor {
     @SubscribeEvent
     public static void tick(ClientTickEvent.Post event) {
         if (active == null) return;
-        if (active.state == State.DONE || active.state == State.ABORTED) {
-            active = null;
-            return;
-        }
+        // Keep terminal state visible so the screen can detect the transition
+        // and refresh; cleared the next time start() is called.
+        if (!active.isRunning()) return;
         active.advance();
     }
 

@@ -26,20 +26,25 @@ import java.util.List;
 /**
  * Tree screen — owns the target stack and desired quantity, rebuilds on demand.
  *
- * Click zones per tree row:
- *   - icon (xOff..+18)              → expand/collapse if not a leaf
- *   - alternatives indicator (+N)   → open RecipePickerScreen
- *
- * Status colors:
- *   HAVE green / CRAFTABLE orange / MISSING red / CYCLE magenta / AMBIGUOUS blue
+ * Layout:
+ *   ┌───────────────────────────────────────────────────────────┐
+ *   │  title                              Qty: [__] [Stack]     │  HEADER
+ *   ├──────────────────────────────────────────┬────────────────┤
+ *   │  tree (clipped + scrollbar)              │  base resources│
+ *   ├──────────────────────────────────────────┴────────────────┤
+ *   │  [Execute][Abort]   status   [Dump][Reset] [Done]         │  ACTION
+ *   └───────────────────────────────────────────────────────────┘
  */
 public class RecipeTreeScreen extends Screen {
     private static final int ROW_HEIGHT = 22;
     private static final int INDENT = 18;
     private static final int HEADER_HEIGHT = 32;
     private static final int ACTION_BAR_HEIGHT = 32;
+    private static final int SIDEBAR_WIDTH = 190;
+    private static final int SCROLLBAR_WIDTH = 6;
     private static final int ALT_INDICATOR_X_OFFSET = 130;
     private static final int ALT_INDICATOR_WIDTH = 32;
+    private static final int TREE_LEFT = 12;
 
     private final ItemStack targetStack;
     private final InventoryAnalyzer inventory;
@@ -49,11 +54,13 @@ public class RecipeTreeScreen extends Screen {
     private RecipeNode root;
     private final List<Row> rows = new ArrayList<>();
     private int scroll;
+    private boolean draggingScrollbar;
 
     private EditBox quantityBox;
     private Button executeButton;
     private Button abortButton;
     private Component statusLine = Component.empty();
+    private CraftExecutor.State lastObservedState;
 
     public RecipeTreeScreen(ItemStack targetStack, int quantity,
                             InventoryAnalyzer inventory, PreferenceManager prefs) {
@@ -70,39 +77,35 @@ public class RecipeTreeScreen extends Screen {
     protected void init() {
         rebuildTree();
 
-        quantityBox = new EditBox(this.font, 80, 8, 60, 18,
+        // Header: quantity controls on the right
+        int qxRight = this.width - 12;
+        Button stack = Button.builder(Component.translatable("jeichaincraft.button.stack"),
+                        b -> setQuantity(targetStack.getMaxStackSize()))
+                .bounds(qxRight - 50, 8, 50, 18).build();
+        quantityBox = new EditBox(this.font, qxRight - 50 - 4 - 50, 8, 50, 18,
                 Component.translatable("jeichaincraft.screen.tree.quantity"));
         quantityBox.setValue(String.valueOf(quantity));
         quantityBox.setFilter(s -> s.isEmpty() || s.matches("\\d{0,5}"));
         quantityBox.setResponder(this::onQuantityChanged);
         addRenderableWidget(quantityBox);
-
-        Button minus = Button.builder(Component.literal("-"), b -> bumpQuantity(-1))
-                .bounds(60, 8, 18, 18).build();
-        Button plus = Button.builder(Component.literal("+"), b -> bumpQuantity(+1))
-                .bounds(142, 8, 18, 18).build();
-        Button stack = Button.builder(Component.translatable("jeichaincraft.button.stack"),
-                        b -> setQuantity(targetStack.getMaxStackSize()))
-                .bounds(164, 8, 48, 18).build();
-        addRenderableWidget(minus);
-        addRenderableWidget(plus);
         addRenderableWidget(stack);
 
-        int y = this.height - ACTION_BAR_HEIGHT + 4;
+        // Action bar
+        int y = this.height - ACTION_BAR_HEIGHT + 6;
         executeButton = Button.builder(Component.translatable("jeichaincraft.button.execute"),
                         b -> startExecution())
-                .bounds(8, y, 110, 20).build();
+                .bounds(8, y, 88, 20).build();
         abortButton = Button.builder(Component.translatable("jeichaincraft.button.abort"),
                         b -> CraftExecutor.cancel())
-                .bounds(124, y, 110, 20).build();
+                .bounds(100, y, 60, 20).build();
         Button dump = Button.builder(Component.translatable("jeichaincraft.button.dump"),
                         b -> RecipeLookup.dumpDebug(targetStack))
-                .bounds(240, y, 60, 20).build();
+                .bounds(this.width - 200, y, 50, 20).build();
         Button resetPrefs = Button.builder(Component.translatable("jeichaincraft.button.reset_prefs"),
                         b -> { prefs.clear(); rebuildTree(); })
-                .bounds(304, y, 80, 20).build();
+                .bounds(this.width - 146, y, 70, 20).build();
         Button close = Button.builder(Component.translatable("gui.done"), b -> this.onClose())
-                .bounds(this.width - 80, y, 72, 20).build();
+                .bounds(this.width - 72, y, 64, 20).build();
         addRenderableWidget(executeButton);
         addRenderableWidget(abortButton);
         addRenderableWidget(dump);
@@ -110,10 +113,6 @@ public class RecipeTreeScreen extends Screen {
         addRenderableWidget(close);
 
         refreshButtons();
-    }
-
-    private void bumpQuantity(int delta) {
-        setQuantity(quantity + delta);
     }
 
     public void setQuantity(int q) {
@@ -135,6 +134,7 @@ public class RecipeTreeScreen extends Screen {
     public void rebuildTree() {
         root = new RecipeTreeBuilder(inventory, prefs).build(targetStack, quantity);
         rebuildRows();
+        clampScroll();
     }
 
     private void rebuildRows() {
@@ -161,65 +161,135 @@ public class RecipeTreeScreen extends Screen {
             return;
         }
         CraftExecutor.start(steps);
-        statusLine = Component.translatable("jeichaincraft.executor.running");
+        statusLine = Component.empty();
+        lastObservedState = CraftExecutor.State.PLACING;
     }
 
     private void refreshButtons() {
         CraftExecutor active = CraftExecutor.active();
-        boolean running = active != null
-                && active.state() != CraftExecutor.State.DONE
-                && active.state() != CraftExecutor.State.ABORTED;
+        boolean running = active != null && active.isRunning();
         executeButton.active = !running;
         abortButton.active = running;
     }
 
+    /** Detects running→terminal transition and refreshes tree once. */
+    private void observeExecutor() {
+        CraftExecutor active = CraftExecutor.active();
+        if (active == null) return;
+
+        CraftExecutor.State now = active.state();
+        boolean wasRunning = lastObservedState != null
+                && lastObservedState != CraftExecutor.State.DONE
+                && lastObservedState != CraftExecutor.State.ABORTED;
+        boolean isTerminal = now == CraftExecutor.State.DONE
+                || now == CraftExecutor.State.ABORTED;
+
+        if (wasRunning && isTerminal) {
+            if (now == CraftExecutor.State.DONE) {
+                statusLine = Component.translatable("jeichaincraft.executor.done");
+            } else if (active.error() != null) {
+                statusLine = active.error();
+            } else {
+                statusLine = Component.translatable("jeichaincraft.executor.aborted");
+            }
+            rebuildTree();
+        }
+        lastObservedState = now;
+    }
+
+    // ─────────────────────────────────────────────────────────────── rendering
+
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partial) {
+        observeExecutor();
+
         renderBackground(g, mouseX, mouseY, partial);
         super.render(g, mouseX, mouseY, partial);
 
-        int treeX = 12;
-        int treeY = HEADER_HEIGHT - scroll;
-        int sidebarX = this.width - 200;
-
-        g.drawString(font, Component.translatable("jeichaincraft.screen.tree.quantity"),
-                10, 13, 0xFFFFFFFF);
-        g.drawCenteredString(font, this.title, this.width / 2, 13, 0xFFFFFFFF);
-        g.renderItem(targetStack, 220, 6);
-        // Debug aid: show the resolved item id of the root
-        g.drawString(font, ItemId.of(targetStack).toString(), 242, 13, 0xFF888888);
-
-        Row hoveredRow = null;
-        for (Row r : rows) {
-            if (treeY > -ROW_HEIGHT && treeY < this.height - ACTION_BAR_HEIGHT) {
-                drawNodeRow(g, r, treeX, treeY);
-                if (mouseY >= treeY && mouseY <= treeY + 18) {
-                    int xOff = treeX + r.depth * INDENT;
-                    if (mouseX >= xOff && mouseX <= xOff + 200) {
-                        hoveredRow = r;
-                    }
-                }
-            }
-            treeY += ROW_HEIGHT;
-        }
-
-        drawSidebar(g, sidebarX, HEADER_HEIGHT);
+        drawHeader(g);
+        Row hovered = drawTree(g, mouseX, mouseY);
+        drawSidebar(g);
         drawActionBar(g);
         refreshButtons();
 
-        if (hoveredRow != null && hoveredRow.node.recipeId != null) {
-            drawRecipeTooltip(g, hoveredRow.node, mouseX, mouseY);
+        if (hovered != null && hovered.node.recipeId != null) {
+            drawRecipeTooltip(g, hovered.node, mouseX, mouseY);
         }
     }
 
-    private void drawRecipeTooltip(GuiGraphics g, RecipeNode node, int mouseX, int mouseY) {
-        java.util.List<Component> lines = new java.util.ArrayList<>();
-        lines.add(Component.literal(node.recipeId).withStyle(s -> s.withColor(0xFFFFAA40)));
-        lines.add(Component.translatable("jeichaincraft.tooltip.ingredients"));
-        for (RecipeNode child : node.children) {
-            lines.add(Component.literal("  - " + child.needed + " x " + ItemId.of(child.target)));
+    private void drawHeader(GuiGraphics g) {
+        g.drawCenteredString(font, this.title, this.width / 2, 13, 0xFFFFFFFF);
+        // Qty label to the left of the EditBox
+        if (quantityBox != null) {
+            g.drawString(font, Component.translatable("jeichaincraft.screen.tree.quantity"),
+                    quantityBox.getX() - 26, 13, 0xFFAAAAAA);
         }
-        g.renderComponentTooltip(font, lines, mouseX, mouseY);
+    }
+
+    private int treeRightEdge() {
+        return this.width - SIDEBAR_WIDTH - 12;
+    }
+
+    private int treeAreaTop() {
+        return HEADER_HEIGHT;
+    }
+
+    private int treeAreaBottom() {
+        return this.height - ACTION_BAR_HEIGHT;
+    }
+
+    private int treeAreaHeight() {
+        return treeAreaBottom() - treeAreaTop();
+    }
+
+    private int contentHeight() {
+        return rows.size() * ROW_HEIGHT;
+    }
+
+    private int maxScroll() {
+        return Math.max(0, contentHeight() - treeAreaHeight());
+    }
+
+    private void clampScroll() {
+        scroll = Math.max(0, Math.min(scroll, maxScroll()));
+    }
+
+    private Row drawTree(GuiGraphics g, int mouseX, int mouseY) {
+        int top = treeAreaTop();
+        int bottom = treeAreaBottom();
+        int right = treeRightEdge();
+
+        // Clip everything in the tree area so rows do not bleed into header or action bar.
+        g.enableScissor(0, top, right, bottom);
+
+        Row hovered = null;
+        int y = top - scroll;
+        for (Row r : rows) {
+            if (y + ROW_HEIGHT > top && y < bottom) {
+                drawNodeRow(g, r, TREE_LEFT, y);
+                if (mouseY >= y && mouseY <= y + 18) {
+                    int xOff = TREE_LEFT + r.depth * INDENT;
+                    if (mouseX >= xOff && mouseX <= xOff + 200) hovered = r;
+                }
+            }
+            y += ROW_HEIGHT;
+        }
+
+        g.disableScissor();
+
+        drawScrollbar(g, right - SCROLLBAR_WIDTH - 2, top, bottom);
+        return hovered;
+    }
+
+    private void drawScrollbar(GuiGraphics g, int x, int top, int bottom) {
+        int trackH = bottom - top;
+        int contentH = contentHeight();
+        if (contentH <= trackH) return; // nothing to scroll
+
+        g.fill(x, top, x + SCROLLBAR_WIDTH, bottom, 0xFF202020);
+        int handleH = Math.max(20, trackH * trackH / contentH);
+        int handleY = top + (maxScroll() == 0 ? 0 : scroll * (trackH - handleH) / maxScroll());
+        g.fill(x, handleY, x + SCROLLBAR_WIDTH, handleY + handleH, 0xFFAAAAAA);
     }
 
     private void drawNodeRow(GuiGraphics g, Row row, int x, int y) {
@@ -245,17 +315,17 @@ public class RecipeTreeScreen extends Screen {
         }
     }
 
-    private void drawSidebar(GuiGraphics g, int x, int y) {
+    private void drawSidebar(GuiGraphics g) {
+        int x = this.width - SIDEBAR_WIDTH;
+        int y = HEADER_HEIGHT;
         g.drawString(font, Component.translatable("jeichaincraft.screen.tree.base_resources"),
                 x, y, 0xFFFFFFFF);
         int row = y + 14;
         for (CraftPlanner.BaseResource res : CraftPlanner.baseResources(root)) {
             g.renderItem(res.stack(), x, row);
             g.renderItemDecorations(font, res.stack(), x, row);
-            int missing = res.missing();
-            int color = missing == 0 ? 0xFF60FF60 : 0xFFFF6060;
-            String text = res.have() + "/" + res.needed();
-            g.drawString(font, text, x + 22, row + 4, color);
+            int color = res.missing() == 0 ? 0xFF60FF60 : 0xFFFF6060;
+            g.drawString(font, res.have() + "/" + res.needed(), x + 22, row + 4, color);
             row += 20;
             if (row > this.height - ACTION_BAR_HEIGHT - 4) break;
         }
@@ -264,25 +334,27 @@ public class RecipeTreeScreen extends Screen {
     private void drawActionBar(GuiGraphics g) {
         int barY = this.height - ACTION_BAR_HEIGHT;
         g.fill(0, barY, this.width, this.height, 0xC0000000);
+        g.fill(0, barY, this.width, barY + 1, 0xFF505050);
 
         CraftExecutor active = CraftExecutor.active();
-        if (active != null) {
+        int statusX = 168;
+        int statusY = barY + 12;
+
+        if (active != null && active.isRunning()) {
             int total = Math.max(1, active.total());
             int prog = active.progress();
-            int barW = 200;
-            int barX = 240;
+            int barW = 160;
             int barH = 6;
-            int barTop = barY + 10;
-            g.fill(barX, barTop, barX + barW, barTop + barH, 0xFF202020);
+            int barTop = barY + 13;
+            g.fill(statusX, barTop, statusX + barW, barTop + barH, 0xFF202020);
             int fill = (int) (barW * (prog / (float) total));
-            g.fill(barX, barTop, barX + fill, barTop + barH, 0xFF40FF40);
-            g.drawString(font, prog + " / " + total, barX + barW + 8, barTop - 1, 0xFFFFFFFF);
-
-            if (active.state() == CraftExecutor.State.ABORTED && active.error() != null) {
-                g.drawString(font, active.error(), barX, barTop + 12, 0xFFFF6060);
-            }
+            g.fill(statusX, barTop, statusX + fill, barTop + barH, 0xFF40FF40);
+            g.drawString(font, prog + " / " + total, statusX + barW + 6, barTop - 1, 0xFFFFFFFF);
         } else if (!statusLine.getString().isEmpty()) {
-            g.drawString(font, statusLine, 240, barY + 12, 0xFFFFAA40);
+            int color = active != null && active.state() == CraftExecutor.State.ABORTED
+                    ? 0xFFFF6060
+                    : 0xFFFFAA40;
+            g.drawString(font, statusLine, statusX, statusY, color);
         }
     }
 
@@ -296,19 +368,45 @@ public class RecipeTreeScreen extends Screen {
         };
     }
 
+    private void drawRecipeTooltip(GuiGraphics g, RecipeNode node, int mouseX, int mouseY) {
+        List<Component> lines = new ArrayList<>();
+        lines.add(Component.literal(node.recipeId).withStyle(s -> s.withColor(0xFFFFAA40)));
+        if (!node.children.isEmpty()) {
+            lines.add(Component.translatable("jeichaincraft.tooltip.ingredients"));
+            for (RecipeNode child : node.children) {
+                lines.add(Component.literal("  - " + child.needed + " x " + ItemId.of(child.target)));
+            }
+        }
+        g.renderComponentTooltip(font, lines, mouseX, mouseY);
+    }
+
+    // ───────────────────────────────────────────────────────────────── input
+
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (super.mouseClicked(mouseX, mouseY, button)) return true;
 
-        int treeY = HEADER_HEIGHT - scroll;
+        // Scrollbar click: jump-to or start drag
+        int top = treeAreaTop();
+        int bottom = treeAreaBottom();
+        int sbX = treeRightEdge() - SCROLLBAR_WIDTH - 2;
+        if (contentHeight() > treeAreaHeight()
+                && mouseX >= sbX && mouseX <= sbX + SCROLLBAR_WIDTH
+                && mouseY >= top && mouseY <= bottom) {
+            draggingScrollbar = true;
+            jumpScrollTo(mouseY);
+            return true;
+        }
+
+        // Tree row clicks
+        int treeY = top - scroll;
         for (Row r : rows) {
-            int xOff = 12 + r.depth * INDENT;
+            int xOff = TREE_LEFT + r.depth * INDENT;
             if (mouseY < treeY || mouseY > treeY + 18) {
                 treeY += ROW_HEIGHT;
                 continue;
             }
 
-            // +N alternatives indicator → open picker
             if (r.node.alternatives > 0
                     && mouseX >= xOff + ALT_INDICATOR_X_OFFSET
                     && mouseX <= xOff + ALT_INDICATOR_X_OFFSET + ALT_INDICATOR_WIDTH) {
@@ -316,7 +414,6 @@ public class RecipeTreeScreen extends Screen {
                 return true;
             }
 
-            // Icon / label → expand/collapse
             if (mouseX >= xOff && mouseX <= xOff + 200) {
                 if (!r.node.isLeaf()) {
                     r.node.expanded = !r.node.expanded;
@@ -327,6 +424,31 @@ public class RecipeTreeScreen extends Screen {
             return false;
         }
         return false;
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
+        if (draggingScrollbar) {
+            jumpScrollTo(mouseY);
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (draggingScrollbar) {
+            draggingScrollbar = false;
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    private void jumpScrollTo(double mouseY) {
+        int top = treeAreaTop();
+        int trackH = treeAreaHeight();
+        double frac = (mouseY - top) / trackH;
+        scroll = (int) Math.max(0, Math.min(maxScroll(), frac * maxScroll()));
     }
 
     private void openPicker(RecipeNode node) {
@@ -343,9 +465,7 @@ public class RecipeTreeScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double dx, double dy) {
         scroll = Math.max(0, scroll - (int) (dy * ROW_HEIGHT));
-        int maxScroll = Math.max(0,
-                rows.size() * ROW_HEIGHT - this.height + HEADER_HEIGHT + ACTION_BAR_HEIGHT + 16);
-        scroll = Math.min(scroll, maxScroll);
+        clampScroll();
         return true;
     }
 

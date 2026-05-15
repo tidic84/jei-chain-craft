@@ -13,6 +13,8 @@
   "jeichaincraft.button.reset_prefs": "Reset prefs",
   "jeichaincraft.tooltip.ingredients": "Ingredients:",
   "jeichaincraft.executor.running": "Execution...",
+  "jeichaincraft.executor.done": "Termine.",
+  "jeichaincraft.executor.aborted": "Annule.",
   "jeichaincraft.executor.error.no_player": "Joueur absent du monde.",
   "jeichaincraft.executor.error.no_menu": "Menu ferme.",
   "jeichaincraft.executor.error.no_handler": "Ouvrir une table de craft (ou votre inventaire) d'abord.",
