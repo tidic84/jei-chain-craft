@@ -66,9 +66,14 @@ public class RecipeTreeScreen extends Screen {
                             InventoryAnalyzer inventory, PreferenceManager prefs) {
         super(Component.translatable("jeichaincraft.screen.tree.title"));
         this.targetStack = targetStack;
-        this.quantity = Math.max(1, quantity);
         this.inventory = inventory;
         this.prefs = prefs;
+        // Default to at least one more than the current inventory count so the
+        // chain is always informative. With qty == have, the algorithm returns
+        // a single HAVE node and the screen looks empty even though the user
+        // pressed C to *see* the chain.
+        int have = inventory.count(targetStack);
+        this.quantity = Math.max(Math.max(1, quantity), have + 1);
     }
 
     private record Row(RecipeNode node, int depth) {}
