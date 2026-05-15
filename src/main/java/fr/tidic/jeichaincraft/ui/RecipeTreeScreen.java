@@ -10,6 +10,7 @@ import fr.tidic.jeichaincraft.core.RecipeNode;
 import fr.tidic.jeichaincraft.core.RecipeTreeBuilder;
 import fr.tidic.jeichaincraft.executor.CraftExecutor;
 import fr.tidic.jeichaincraft.executor.CraftHandlerRegistry;
+import fr.tidic.jeichaincraft.hud.PinnedFarmList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -36,13 +37,18 @@ import java.util.List;
  *   └───────────────────────────────────────────────────────────┘
  */
 public class RecipeTreeScreen extends Screen {
-    private static final int ROW_HEIGHT = 22;
-    private static final int INDENT = 18;
+    private static final int ROW_HEIGHT = 24;
+    private static final int INDENT = 16;
     private static final int HEADER_HEIGHT = 32;
     private static final int ACTION_BAR_HEIGHT = 32;
     private static final int SIDEBAR_WIDTH = 190;
     private static final int SCROLLBAR_WIDTH = 6;
-    private static final int ALT_INDICATOR_X_OFFSET = 130;
+    private static final int STRIPE_WIDTH = 3;
+    private static final int TRI_WIDTH = 10;
+    private static final int ICON_OFFSET = STRIPE_WIDTH + 2 + TRI_WIDTH;
+    private static final int ICON_SIZE = 16;
+    private static final int TEXT_OFFSET = ICON_OFFSET + ICON_SIZE + 4;
+    private static final int ALT_INDICATOR_X_OFFSET = 160;
     private static final int ALT_INDICATOR_WIDTH = 32;
     private static final int TREE_LEFT = 12;
 
@@ -98,6 +104,12 @@ public class RecipeTreeScreen extends Screen {
         abortButton = Button.builder(Component.translatable("jeichaincraft.button.abort"),
                         b -> CraftExecutor.cancel())
                 .bounds(100, y, 60, 20).build();
+        Button pin = Button.builder(Component.translatable("jeichaincraft.button.pin"),
+                        b -> PinnedFarmList.set(CraftPlanner.baseResources(root)))
+                .bounds(164, y, 50, 20).build();
+        Button clearPin = Button.builder(Component.translatable("jeichaincraft.button.clear_pin"),
+                        b -> PinnedFarmList.clear())
+                .bounds(218, y, 60, 20).build();
         Button dump = Button.builder(Component.translatable("jeichaincraft.button.dump"),
                         b -> RecipeLookup.dumpDebug(targetStack))
                 .bounds(this.width - 200, y, 50, 20).build();
@@ -108,6 +120,8 @@ public class RecipeTreeScreen extends Screen {
                 .bounds(this.width - 72, y, 64, 20).build();
         addRenderableWidget(executeButton);
         addRenderableWidget(abortButton);
+        addRenderableWidget(pin);
+        addRenderableWidget(clearPin);
         addRenderableWidget(dump);
         addRenderableWidget(resetPrefs);
         addRenderableWidget(close);
@@ -266,11 +280,11 @@ public class RecipeTreeScreen extends Screen {
         int y = top - scroll;
         for (Row r : rows) {
             if (y + ROW_HEIGHT > top && y < bottom) {
-                drawNodeRow(g, r, TREE_LEFT, y);
-                if (mouseY >= y && mouseY <= y + 18) {
-                    int xOff = TREE_LEFT + r.depth * INDENT;
-                    if (mouseX >= xOff && mouseX <= xOff + 200) hovered = r;
-                }
+                int xOff = TREE_LEFT + r.depth * INDENT;
+                boolean isHover = mouseX >= xOff && mouseX <= right - SCROLLBAR_WIDTH - 4
+                        && mouseY >= y && mouseY <= y + ROW_HEIGHT;
+                drawNodeRow(g, r, TREE_LEFT, y, right - SCROLLBAR_WIDTH - 4, isHover);
+                if (isHover) hovered = r;
             }
             y += ROW_HEIGHT;
         }
@@ -292,34 +306,51 @@ public class RecipeTreeScreen extends Screen {
         g.fill(x, handleY, x + SCROLLBAR_WIDTH, handleY + handleH, 0xFFAAAAAA);
     }
 
-    private void drawNodeRow(GuiGraphics g, Row row, int x, int y) {
+    private void drawNodeRow(GuiGraphics g, Row row, int x, int y, int rightEdge, boolean hover) {
         int xOff = x + row.depth * INDENT;
         int color = statusColor(row.node.status);
 
-        g.fill(xOff, y, xOff + 18, y + 18, 0xFF202020);
-        g.fill(xOff, y, xOff + 18, y + 18, color & 0x80FFFFFF);
-        g.renderItem(row.node.target, xOff + 1, y + 1);
-        g.renderItemDecorations(font, row.node.target, xOff + 1, y + 1);
+        // Full-row hover highlight (before any content)
+        if (hover) g.fill(xOff, y, rightEdge, y + ROW_HEIGHT, 0x40FFFFFF);
 
+        // Left status stripe — 3px wide, full row height
+        g.fill(xOff, y + 2, xOff + STRIPE_WIDTH, y + ROW_HEIGHT - 2, color);
+
+        // Expand/collapse triangle for non-leaves
+        if (!row.node.isLeaf()) {
+            String tri = row.node.expanded ? "v" : ">";
+            g.drawString(font, tri, xOff + STRIPE_WIDTH + 4, y + 8, 0xFFCCCCCC);
+        }
+
+        // Item icon
+        int iconX = xOff + ICON_OFFSET;
+        int iconY = y + (ROW_HEIGHT - ICON_SIZE) / 2;
+        g.renderItem(row.node.target, iconX, iconY);
+        g.renderItemDecorations(font, row.node.target, iconX, iconY);
+
+        // Label + count
         String label = row.node.target.getHoverName().getString();
         String count;
         if (row.node.isRoot) {
-            // Root: show "× N to craft". Inventory have count goes on the right
-            // as a hint, but it does not affect the algorithm at this level.
             count = "x " + row.node.needed
-                    + (row.node.have > 0 ? "  (have " + row.node.have + ")" : "");
+                    + (row.node.have > 0 ? " (have " + row.node.have + ")" : "");
         } else {
             count = row.node.have + " / " + row.node.needed;
         }
-        g.drawString(font, label, xOff + 22, y + 2, 0xFFFFFFFF);
-        g.drawString(font, count, xOff + 22, y + 11, 0xFFAAAAAA);
+        g.drawString(font, label, xOff + TEXT_OFFSET, y + 4, 0xFFFFFFFF);
+        int countColor = switch (row.node.status) {
+            case HAVE      -> 0xFF80FF80;
+            case MISSING   -> 0xFFFF8080;
+            case CYCLE     -> 0xFFFF80FF;
+            default        -> 0xFFAAAAAA;
+        };
+        g.drawString(font, count, xOff + TEXT_OFFSET, y + 14, countColor);
 
         if (row.node.alternatives > 0) {
             String alt = "+" + row.node.alternatives;
-            g.fill(xOff + ALT_INDICATOR_X_OFFSET, y + 2,
-                    xOff + ALT_INDICATOR_X_OFFSET + ALT_INDICATOR_WIDTH, y + 16,
-                    0xFF1A3A60);
-            g.drawString(font, alt, xOff + ALT_INDICATOR_X_OFFSET + 4, y + 6, 0xFF80C0FF);
+            int altX = xOff + ALT_INDICATOR_X_OFFSET;
+            g.fill(altX, y + 4, altX + ALT_INDICATOR_WIDTH, y + ROW_HEIGHT - 4, 0xFF1A3A60);
+            g.drawString(font, alt, altX + 4, y + 8, 0xFF80C0FF);
         }
     }
 
@@ -418,7 +449,7 @@ public class RecipeTreeScreen extends Screen {
         int treeY = top - scroll;
         for (Row r : rows) {
             int xOff = TREE_LEFT + r.depth * INDENT;
-            if (mouseY < treeY || mouseY > treeY + 18) {
+            if (mouseY < treeY || mouseY > treeY + ROW_HEIGHT) {
                 treeY += ROW_HEIGHT;
                 continue;
             }
@@ -430,7 +461,8 @@ public class RecipeTreeScreen extends Screen {
                 return true;
             }
 
-            if (mouseX >= xOff && mouseX <= xOff + 200) {
+            int rowRightEdge = treeRightEdge() - SCROLLBAR_WIDTH - 4;
+            if (mouseX >= xOff && mouseX <= rowRightEdge) {
                 if (!r.node.isLeaf()) {
                     r.node.expanded = !r.node.expanded;
                     rebuildRows();
