@@ -320,8 +320,16 @@ public class RecipeTreeScreen extends Screen {
         int y = HEADER_HEIGHT;
         g.drawString(font, Component.translatable("jeichaincraft.screen.tree.base_resources"),
                 x, y, 0xFFFFFFFF);
+
+        List<CraftPlanner.BaseResource> resources = CraftPlanner.baseResources(root);
+        if (resources.isEmpty()) {
+            g.drawString(font, Component.translatable("jeichaincraft.screen.tree.no_base_resources"),
+                    x, y + 14, 0xFF888888);
+            return;
+        }
+
         int row = y + 14;
-        for (CraftPlanner.BaseResource res : CraftPlanner.baseResources(root)) {
+        for (CraftPlanner.BaseResource res : resources) {
             g.renderItem(res.stack(), x, row);
             g.renderItemDecorations(font, res.stack(), x, row);
             int color = res.missing() == 0 ? 0xFF60FF60 : 0xFFFF6060;

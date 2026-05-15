@@ -6,6 +6,7 @@
   "jeichaincraft.button.abort": "Abort",
   "jeichaincraft.screen.tree.title": "Crafting Chain",
   "jeichaincraft.screen.tree.base_resources": "Base resources",
+  "jeichaincraft.screen.tree.no_base_resources": "Nothing to gather.",
   "jeichaincraft.screen.tree.quantity": "Qty",
   "jeichaincraft.screen.picker.title": "Pick a recipe for %s",
   "jeichaincraft.button.stack": "Stack",

@@ -36,7 +36,10 @@ public class CraftPlanner {
 
     public static List<BaseResource> baseResources(RecipeNode root) {
         Map<ResourceLocation, BaseResource> agg = new LinkedHashMap<>();
-        collectLeaves(root, agg);
+        // Skip the root itself — it is the goal, not a raw input. Including it
+        // duplicated the target in the sidebar whenever the root was a HAVE
+        // leaf (user has enough already; tree has a single node).
+        for (RecipeNode c : root.children) collectLeaves(c, agg);
         return new ArrayList<>(agg.values());
     }
 
