@@ -20,7 +20,11 @@ public class RecipeNode {
     public String recipeId;
     public int have;
     public int needed;
+    /** Number of craft operations this node will run (0 for leaves / HAVE / MISSING). */
+    public int crafts;
     public boolean expanded = true;
+    /** True only for the user's chosen target. Display + algo differ from ingredients. */
+    public boolean isRoot;
 
     public RecipeNode(ItemStack target, int needed) {
         this.target = target;

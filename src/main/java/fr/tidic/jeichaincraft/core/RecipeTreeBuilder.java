@@ -12,15 +12,17 @@ import java.util.Set;
 /**
  * Recursive tree builder with cycle detection + depth cap.
  *
- * Algo:
- *  1. Count what the player has of the target item.
- *  2. If enough → HAVE leaf.
- *  3. Else look up recipes producing the target.
- *     - 0 recipes → MISSING leaf.
- *     - >=1       → pick preferred (or first), recurse on its ingredients.
- *     - >1        → mark node alternatives count.
- *  4. Track visited item IDs in the current path; if a recursion would revisit one,
- *     emit a CYCLE leaf instead of recursing.
+ * Semantics:
+ *  - The {@code amountToCraft} argument is the number of {@code target} items
+ *    the user wants this run to produce. Existing inventory of the target is
+ *    NOT subtracted — pressing "craft 2 gearboxes" while already holding one
+ *    crafts 2 more, ending with 3 total.
+ *  - For ingredient sub-nodes, inventory IS considered: if the player already
+ *    has enough planks, the planks node becomes a HAVE leaf and we do not
+ *    recurse on its sub-ingredients.
+ *
+ * Cycle detection: track visited item ids along the current recursion path
+ * and emit a CYCLE leaf if a recipe would revisit one.
  */
 public class RecipeTreeBuilder {
     private static final int DEFAULT_MAX_DEPTH = 16;
@@ -39,16 +41,22 @@ public class RecipeTreeBuilder {
         this.maxDepth = maxDepth;
     }
 
-    public RecipeNode build(ItemStack target, int needed) {
-        JEIChainCraftMod.LOGGER.info("=== build root {} qty={} ===", ItemId.of(target), needed);
-        return build(target, needed, new HashSet<>(), 0);
+    public RecipeNode build(ItemStack target, int amountToCraft) {
+        JEIChainCraftMod.LOGGER.info("=== build root {} amountToCraft={} ===",
+                ItemId.of(target), amountToCraft);
+        return build(target, amountToCraft, true, new HashSet<>(), 0);
     }
 
-    private RecipeNode build(ItemStack target, int needed, Set<ResourceLocation> path, int depth) {
+    private RecipeNode build(ItemStack target, int needed, boolean isRoot,
+                             Set<ResourceLocation> path, int depth) {
         RecipeNode node = new RecipeNode(target, needed);
         node.have = inventory.count(target);
+        node.isRoot = isRoot;
 
-        if (node.have >= needed) {
+        // For ingredients, "we already have enough" is a HAVE leaf — no crafting
+        // needed for this subtree. For the root, the user explicitly asked to
+        // craft this many, regardless of what they currently hold.
+        if (!isRoot && node.have >= needed) {
             node.status = NodeStatus.HAVE;
             return node;
         }
@@ -77,14 +85,14 @@ public class RecipeTreeBuilder {
                 depth, node.recipeId, itemId, node.alternatives);
 
         int perCraft = RecipeLookup.outputCount(chosen);
-        int missing = Math.max(0, needed - node.have);
-        int crafts = (missing + perCraft - 1) / perCraft;
+        int amountToProduce = isRoot ? needed : Math.max(0, needed - node.have);
+        node.crafts = (amountToProduce + perCraft - 1) / perCraft;
 
         path.add(itemId);
         boolean anyMissing = false;
         for (ItemStack ing : RecipeLookup.ingredientsOf(chosen)) {
-            int ingNeed = ing.getCount() * crafts;
-            RecipeNode child = build(ing, ingNeed, path, depth + 1);
+            int ingNeed = ing.getCount() * node.crafts;
+            RecipeNode child = build(ing, ingNeed, false, path, depth + 1);
             node.children.add(child);
             if (child.status == NodeStatus.MISSING || child.status == NodeStatus.CYCLE) {
                 anyMissing = true;

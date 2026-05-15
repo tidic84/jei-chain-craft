@@ -66,6 +66,8 @@ public class CraftPlanner {
     private static void collectSteps(RecipeNode node, List<CraftStep> out) {
         if (node.isLeaf() || node.recipeId == null) return;
         for (RecipeNode c : node.children) collectSteps(c, out);
-        out.add(new CraftStep(node.recipeId, node.target, node.needed));
+        if (node.crafts > 0) {
+            out.add(new CraftStep(node.recipeId, node.target, node.crafts));
+        }
     }
 }

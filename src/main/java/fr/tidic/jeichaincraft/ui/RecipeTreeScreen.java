@@ -68,12 +68,7 @@ public class RecipeTreeScreen extends Screen {
         this.targetStack = targetStack;
         this.inventory = inventory;
         this.prefs = prefs;
-        // Default to at least one more than the current inventory count so the
-        // chain is always informative. With qty == have, the algorithm returns
-        // a single HAVE node and the screen looks empty even though the user
-        // pressed C to *see* the chain.
-        int have = inventory.count(targetStack);
-        this.quantity = Math.max(Math.max(1, quantity), have + 1);
+        this.quantity = Math.max(1, quantity);
     }
 
     private record Row(RecipeNode node, int depth) {}
@@ -307,7 +302,15 @@ public class RecipeTreeScreen extends Screen {
         g.renderItemDecorations(font, row.node.target, xOff + 1, y + 1);
 
         String label = row.node.target.getHoverName().getString();
-        String count = row.node.have + "/" + row.node.needed;
+        String count;
+        if (row.node.isRoot) {
+            // Root: show "× N to craft". Inventory have count goes on the right
+            // as a hint, but it does not affect the algorithm at this level.
+            count = "x " + row.node.needed
+                    + (row.node.have > 0 ? "  (have " + row.node.have + ")" : "");
+        } else {
+            count = row.node.have + " / " + row.node.needed;
+        }
         g.drawString(font, label, xOff + 22, y + 2, 0xFFFFFFFF);
         g.drawString(font, count, xOff + 22, y + 11, 0xFFAAAAAA);
 
