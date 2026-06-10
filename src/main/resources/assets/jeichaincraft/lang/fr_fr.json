@@ -22,5 +22,7 @@
   "jeichaincraft.executor.error.no_player": "Joueur absent du monde.",
   "jeichaincraft.executor.error.no_menu": "Menu ferme.",
   "jeichaincraft.executor.error.no_handler": "Ouvrir une table de craft (ou votre inventaire) d'abord.",
-  "jeichaincraft.executor.error.nothing_to_craft": "Rien a crafter — tout est deja dans l'inventaire."
+  "jeichaincraft.executor.error.nothing_to_craft": "Rien a crafter — tout est deja dans l'inventaire.",
+  "jeichaincraft.executor.error.missing_resources": "Ressources de base manquantes — recolter les items en rouge d'abord.",
+  "jeichaincraft.executor.error.output_timeout": "Le craft n'a rien produit (%s) — plus d'ingredients ? Annule."
 }

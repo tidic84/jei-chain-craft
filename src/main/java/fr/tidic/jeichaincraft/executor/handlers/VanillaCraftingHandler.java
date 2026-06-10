@@ -14,10 +14,9 @@ import net.minecraft.world.item.crafting.RecipeHolder;
  * Drives the vanilla CraftingMenu (3x3 table) or the player's InventoryMenu (2x2).
  *
  * Strategy: piggyback on the vanilla recipe-book placement packet. The server
- * does all the slot math for us when we call gameMode.handlePlaceRecipe with
- * craftAll=true — it places enough ingredients in the grid for as many crafts
- * as the player's inventory allows. Then we QUICK_MOVE (shift-click) the
- * output slot, transferring everything into the inventory in one server tick.
+ * does all the slot math for us when we call gameMode.handlePlaceRecipe —
+ * with craftAll=false it places exactly one set of ingredients. Then we
+ * QUICK_MOVE (shift-click) the output slot once the result shows up.
  *
  * Output slot is always 0 for both InventoryMenu and CraftingMenu in 1.21.1.
  */

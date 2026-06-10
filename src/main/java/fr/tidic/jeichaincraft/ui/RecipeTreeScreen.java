@@ -169,6 +169,10 @@ public class RecipeTreeScreen extends Screen {
             statusLine = Component.translatable("jeichaincraft.executor.error.no_handler");
             return;
         }
+        if (root.status != NodeStatus.CRAFTABLE) {
+            statusLine = Component.translatable("jeichaincraft.executor.error.missing_resources");
+            return;
+        }
         var steps = CraftPlanner.steps(root);
         if (steps.isEmpty()) {
             statusLine = Component.translatable("jeichaincraft.executor.error.nothing_to_craft");

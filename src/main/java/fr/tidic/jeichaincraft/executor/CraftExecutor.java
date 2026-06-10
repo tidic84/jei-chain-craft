@@ -2,10 +2,12 @@ package fr.tidic.jeichaincraft.executor;
 
 import fr.tidic.jeichaincraft.JEIChainCraftMod;
 import fr.tidic.jeichaincraft.core.CraftPlanner.CraftStep;
+import fr.tidic.jeichaincraft.core.RecipeLookup;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -25,6 +27,9 @@ import java.util.List;
 public final class CraftExecutor {
 
     public enum State { PLACING, WAITING_FOR_OUTPUT, COOLDOWN, DONE, ABORTED }
+
+    /** Ticks to wait for the output slot to fill before declaring the craft failed. */
+    private static final int OUTPUT_TIMEOUT_TICKS = 40;
 
     private static CraftExecutor active;
 
@@ -111,10 +116,20 @@ public final class CraftExecutor {
                 tickCounter = 0;
             }
             case WAITING_FOR_OUTPUT -> {
-                if (++tickCounter >= currentHandler.placeToTakeTicks()) {
+                tickCounter++;
+                if (tickCounter < currentHandler.placeToTakeTicks()) return;
+                // Only take once the expected item is actually sitting in the
+                // output slot. Blindly clicking on a timer let the executor
+                // "complete" crafts that never happened (missing ingredients,
+                // server lag) and keep draining whatever resources were left.
+                ItemStack out = currentHandler.peekOutput(menu);
+                if (!out.isEmpty() && ItemStack.isSameItem(out, step.output())) {
                     currentHandler.takeOutput(menu);
                     state = State.COOLDOWN;
                     tickCounter = 0;
+                } else if (tickCounter >= OUTPUT_TIMEOUT_TICKS) {
+                    abort(Component.translatable("jeichaincraft.executor.error.output_timeout",
+                            step.output().getHoverName()));
                 }
             }
             case COOLDOWN -> {
@@ -125,12 +140,25 @@ public final class CraftExecutor {
                     if (craftsOnStep < step.crafts()) {
                         state = State.PLACING;
                     } else {
+                        stashIntermediate(menu, step);
                         advanceStep();
                     }
                 }
             }
             default -> {}
         }
+    }
+
+    /**
+     * Intermediate outputs go back to storage when the handler supports it
+     * (Tom's terminal); the final step's output stays with the player — it is
+     * what they asked for.
+     */
+    private void stashIntermediate(AbstractContainerMenu menu, CraftStep step) {
+        if (currentStep >= steps.size() - 1 || currentHandler == null) return;
+        int produced = step.crafts() * step.resolve()
+                .map(RecipeLookup::outputCount).orElse(1);
+        currentHandler.stashOutput(menu, step.output(), produced);
     }
 
     private void advanceStep() {

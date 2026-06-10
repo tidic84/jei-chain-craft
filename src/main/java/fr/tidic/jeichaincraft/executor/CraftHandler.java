@@ -1,11 +1,12 @@
 package fr.tidic.jeichaincraft.executor;
 
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeHolder;
 
 /**
  * Pluggable executor for a recipe type. Each handler knows how to drive one
- * kind of container menu (vanilla crafting, furnace, modded machine...).
+ * kind of container menu (vanilla crafting, storage mod terminal...).
  */
 public interface CraftHandler {
 
@@ -13,17 +14,28 @@ public interface CraftHandler {
     boolean canHandle(AbstractContainerMenu menu);
 
     /**
-     * Begins one craft of {@code recipe} (with craftAll=true so the server
-     * places as many ingredients as available). Non-blocking — the executor
-     * waits a few ticks before calling {@link #takeOutput} to let the server
-     * push the result back.
+     * Places exactly one set of ingredients for {@code recipe} in the grid.
+     * Non-blocking — the executor polls {@link #peekOutput} until the server
+     * pushes the result back, then calls {@link #takeOutput}.
      */
     void placeIngredients(RecipeHolder<?> recipe, AbstractContainerMenu menu);
 
-    /** Shift-click the output slot, transferring all crafted items to the player inventory. */
+    /** Current content of the output slot — lets the executor verify the craft actually happened. */
+    default ItemStack peekOutput(AbstractContainerMenu menu) {
+        return menu.slots.isEmpty() ? ItemStack.EMPTY : menu.getSlot(0).getItem();
+    }
+
+    /** Shift-click the output slot, transferring the crafted items to the player inventory. */
     void takeOutput(AbstractContainerMenu menu);
 
-    /** How many ticks to wait between placeIngredients() and takeOutput(). */
+    /**
+     * Called when an intermediate step finishes (never for the final target):
+     * handlers backed by a storage network move roughly {@code amount} of
+     * {@code output} from the player inventory into storage. Default: no-op.
+     */
+    default void stashOutput(AbstractContainerMenu menu, ItemStack output, int amount) {}
+
+    /** How many ticks to wait between placeIngredients() and the first output check. */
     default int placeToTakeTicks() {
         return 4;
     }

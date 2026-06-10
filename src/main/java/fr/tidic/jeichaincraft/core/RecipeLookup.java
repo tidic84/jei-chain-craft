@@ -85,6 +85,46 @@ public final class RecipeLookup {
         return result;
     }
 
+    /**
+     * One entry per distinct ingredient of a recipe: the Ingredient itself
+     * (so inventory matching honors tags — any plank satisfies #planks) and
+     * how many of it one craft consumes.
+     */
+    public record RecipeIngredient(Ingredient matcher, int count) {}
+
+    /**
+     * Ingredient slots merged by identity: a recipe with 8 iron ingots yields
+     * a single entry of count 8 instead of 8 separate entries. Keeping slots
+     * separate let every slot count the same inventory stack — the planner
+     * reserves from a shared budget, so amounts must be aggregated.
+     */
+    public static List<RecipeIngredient> mergedIngredientsOf(RecipeHolder<?> holder) {
+        List<RecipeIngredient> result = new ArrayList<>();
+        outer:
+        for (Ingredient ing : holder.value().getIngredients()) {
+            if (ing.isEmpty() || ing.getItems().length == 0) continue;
+            for (int i = 0; i < result.size(); i++) {
+                RecipeIngredient existing = result.get(i);
+                if (sameIngredient(existing.matcher(), ing)) {
+                    result.set(i, new RecipeIngredient(existing.matcher(), existing.count() + 1));
+                    continue outer;
+                }
+            }
+            result.add(new RecipeIngredient(ing, 1));
+        }
+        return result;
+    }
+
+    private static boolean sameIngredient(Ingredient a, Ingredient b) {
+        ItemStack[] ia = a.getItems();
+        ItemStack[] ib = b.getItems();
+        if (ia.length != ib.length) return false;
+        for (int i = 0; i < ia.length; i++) {
+            if (!ItemStack.isSameItemSameComponents(ia[i], ib[i])) return false;
+        }
+        return true;
+    }
+
     public static int outputCount(RecipeHolder<?> holder) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return 1;

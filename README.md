@@ -27,12 +27,26 @@ Vanilla crafting only — shaped and shapeless, 2x2 or 3x3.
 
 Not included by design: smelting, blasting, smoking, campfire cooking, stonecutting, smithing. The tool is for *recursive crafting*, not for automating every transformation in the game. Ores that need a furnace stay as leaves with status MISSING.
 
-Modded machines aren't supported out of the box either, but the public registry `CraftHandlerRegistry.register(handler)` lets other mods plug in their own container menus. A handler is just two methods: place the ingredients, take the output. The executor does the timing.
+Modded machines aren't supported out of the box either, but the public registry `CraftHandlerRegistry.register(handler)` lets other mods plug in their own container menus. A handler is just two methods: place the ingredients, take the output. The executor does the timing. Extra item sources (storage mods) plug in through `InventoryAnalyzer.registerSource`.
+
+## Planner semantics
+
+- Every build runs against a single inventory **budget**: branches reserve what they consume, so two branches can never count the same stack twice. Whole-craft rounding surplus is credited back for later steps.
+- Tag ingredients match whatever variant you actually own (`#planks` accepts birch); identical ingredient slots are merged before counting.
+- If the chosen recipe for an item dead-ends — a cycle like iron ingot ⇄ iron block, or missing ingredients — the other recipes producing that item are tried before the branch is declared MISSING.
+- The executor only takes the output after verifying it actually appeared; if it never does, the run aborts with an error instead of clicking through the rest of the plan.
+
+## Tom's Simple Storage
+
+Optional integration, active when `toms_storage` is installed:
+
+- Planning from an open terminal (storage or crafting variant) counts everything in the network, not just your pockets.
+- *Execute chain* works in the crafting terminal; ingredients are pulled from the network by Tom's own recipe placer.
+- Intermediate crafts are pushed back into the network as each step finishes (if the network is full, the remainder stays in your inventory). The final target stays with you.
 
 ## Known gaps
 
 - Recipe preferences are in-memory. They don't survive a game restart.
-- Tag ingredients use the first item in the tag for inventory checks. If a recipe needs `#planks` and you have birch but the algorithm picked oak as canonical, the node shows MISSING. On the to-do list.
 - Execution stops if you close the crafting menu mid-run. Re-open and click Execute again to resume from where the planner left off (it walks the same tree, so already-crafted items now show as HAVE).
 
 ## Versions

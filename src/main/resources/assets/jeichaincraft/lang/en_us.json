@@ -22,5 +22,7 @@
   "jeichaincraft.executor.error.no_player": "Player not in world.",
   "jeichaincraft.executor.error.no_menu": "Container menu closed.",
   "jeichaincraft.executor.error.no_handler": "Open a crafting table (or your inventory) first.",
-  "jeichaincraft.executor.error.nothing_to_craft": "Nothing to craft — all items already in inventory."
+  "jeichaincraft.executor.error.nothing_to_craft": "Nothing to craft — all items already in inventory.",
+  "jeichaincraft.executor.error.missing_resources": "Missing base resources — gather the red items first.",
+  "jeichaincraft.executor.error.output_timeout": "Craft produced no %s — out of ingredients? Aborted."
 }
