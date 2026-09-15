@@ -18,8 +18,8 @@ import java.util.List;
  * loads fine whether Tom's is installed or not. The terminal extends
  * {@link RecipeBookMenu} which lets us reuse the vanilla recipe-book
  * placement packet: the server moves items from the connected storage
- * network into the grid. Batching and output handling live in
- * {@link NetworkCraftSupport} so other storage terminals can reuse them.
+ * network into the grid. Batching and output handling are shared with the
+ * Refined Storage handler — see {@link NetworkCraftSupport}.
  *
  * If Tom's renames its menu class the detection will silently miss and
  * the player will see {@code error.no_handler}.

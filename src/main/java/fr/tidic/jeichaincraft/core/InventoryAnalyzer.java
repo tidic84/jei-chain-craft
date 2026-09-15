@@ -1,5 +1,6 @@
 package fr.tidic.jeichaincraft.core;
 
+import fr.tidic.jeichaincraft.executor.handlers.compat.RefinedStorageReader;
 import fr.tidic.jeichaincraft.executor.handlers.compat.TomsStorageReader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Inventory;
@@ -48,7 +49,9 @@ public class InventoryAnalyzer {
             if (ok) total += s.getCount();
         }
         if (menu != null) {
-            total += TomsStorageReader.countInNetwork(menu, item);        }
+            total += TomsStorageReader.countInNetwork(menu, item);
+            total += RefinedStorageReader.countInNetwork(menu, item);
+        }
         return total;
     }
 }

@@ -19,8 +19,8 @@ import java.util.Map;
 import java.util.function.ToLongBiFunction;
 
 /**
- * Shared batching logic for storage-network crafting terminals (e.g. Tom's
- * crafting terminal).
+ * Shared batching logic for storage-network crafting terminals (Tom's
+ * crafting terminal, Refined Storage crafting grid).
  *
  * Both refill the crafting grid synchronously inside the result slot's
  * onTake: the server pulls one of each consumed ingredient from the network
