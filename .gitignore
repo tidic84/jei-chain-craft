@@ -42,3 +42,6 @@ run/
 **/src/generated/**/.cache/
 repo/
 !**/src/**/repo/
+
+# Loader dev game directories (e.g. fabric/run-fabric)
+run-*/
