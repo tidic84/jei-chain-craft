@@ -8,36 +8,54 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Stores which recipe the user prefers for each ambiguous item.
- * Key = produced item id. Value = recipe id chosen.
+ * Stores user preferences in two namespaces:
+ *  - recipe: which recipe to use when an item is produced by several
+ *    (key = produced item id, value = recipe id).
+ *  - ingredient: which item from a tag-ingredient to use for a given slot
+ *    of a given recipe (key = recipe id + ":" + slot index, value = item id).
+ *
  * In-memory for MVP — persistence to disk is a follow-up.
  */
 public class PreferenceManager {
-    private final Map<ResourceLocation, ResourceLocation> chosen = new HashMap<>();
+    private final Map<ResourceLocation, ResourceLocation> chosenRecipe = new HashMap<>();
+    private final Map<String, ResourceLocation> chosenIngredient = new HashMap<>();
 
     public void remember(ResourceLocation itemId, ResourceLocation recipeId) {
-        chosen.put(itemId, recipeId);
+        chosenRecipe.put(itemId, recipeId);
     }
 
     public void forget(ResourceLocation itemId) {
-        chosen.remove(itemId);
+        chosenRecipe.remove(itemId);
+    }
+
+    public void rememberIngredient(ResourceLocation recipeId, int slotIndex, ResourceLocation itemId) {
+        chosenIngredient.put(ingredientKey(recipeId, slotIndex), itemId);
+    }
+
+    public ResourceLocation ingredientPref(ResourceLocation recipeId, int slotIndex) {
+        return chosenIngredient.get(ingredientKey(recipeId, slotIndex));
     }
 
     public void clear() {
-        chosen.clear();
+        chosenRecipe.clear();
+        chosenIngredient.clear();
     }
 
     public int size() {
-        return chosen.size();
+        return chosenRecipe.size() + chosenIngredient.size();
     }
 
     public RecipeHolder<?> choose(ResourceLocation itemId, List<RecipeHolder<?>> candidates) {
-        ResourceLocation preferred = chosen.get(itemId);
+        ResourceLocation preferred = chosenRecipe.get(itemId);
         if (preferred != null) {
             for (RecipeHolder<?> h : candidates) {
                 if (h.id().equals(preferred)) return h;
             }
         }
         return candidates.get(0);
+    }
+
+    private static String ingredientKey(ResourceLocation recipeId, int slotIndex) {
+        return recipeId + ":" + slotIndex;
     }
 }

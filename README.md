@@ -2,7 +2,7 @@
 
 NeoForge 1.21.1 addon for JEI.
 
-Hover any item, press `C`. A recursive crafting chain opens — what's already in your inventory, what's still missing, in what order to craft. On a crafting table, click *Execute chain* and it runs the whole thing for you.
+Hover any item, press `C`. A recursive crafting chain opens — what's already in your inventory, what's still missing, in what order to craft. On a crafting table — or a storage-network crafting terminal (Tom's Simple Storage) — click *Execute chain* and it runs the whole thing for you.
 
 The point: modpacks where figuring out "what do I actually need to farm" takes ten clicks through JEI.
 
@@ -14,39 +14,35 @@ The point: modpacks where figuring out "what do I actually need to farm" takes t
   - JEI's right-side ingredient list,
   - JEI's bookmarks.
 - The quantity field is what you want to **craft**, not the total to have. `qty = 2` with one already in your pack means crafting 2 more, ending with 3.
-- Open a crafting table and click *Execute chain*. The mod sends the same packet vanilla's recipe book sends, so it works on any server — no server-side mod required.
+- Open a crafting table (or a supported crafting terminal, see [Compatibility](#compatibility)) and click *Execute chain*. The mod sends the same packets the game's recipe book sends, so it works on any server — no server-side mod required. Crafts are batched, so long chains take seconds, not minutes.
 - Click *Pin* to copy the base-resource list onto an HUD overlay (top-left). Counts update live as you collect items; a row goes grey + struck through when it's satisfied.
 
 A `+N` badge next to a node means there are other recipes producing that item. Click the badge to choose one — the choice sticks for that item until you close the game (or click *Reset prefs*).
 
 The hotkey is rebindable in Options → Controls → JEI Chain Craft.
 
+## Compatibility
+
+Optional integrations, detected at runtime. None of these mods is required: without them, the mod just skips the integration.
+
+| Mod | Supported menu | What you get |
+| --- | --- | --- |
+| [Tom's Simple Storage](https://www.curseforge.com/minecraft/mc-mods/toms-storage) | Crafting Terminal | Execute chains from the terminal. Ingredients come from the storage network, crafted items go back into it. The tree counts items stored in the network. |
+Notes:
+- On storage terminals, batch size is limited by what the network holds, so the crafted count stays exact even when ingredients run low.- If a mod renames its menu classes, the integration silently stops matching and *Execute chain* reports that no handler was found.
+
 ## Scope
 
-Vanilla crafting only — shaped and shapeless, 2x2 or 3x3.
+Crafting recipes only — shaped and shapeless, 2x2 or 3x3.
 
 Not included by design: smelting, blasting, smoking, campfire cooking, stonecutting, smithing. The tool is for *recursive crafting*, not for automating every transformation in the game. Ores that need a furnace stay as leaves with status MISSING.
 
-Modded machines aren't supported out of the box either, but the public registry `CraftHandlerRegistry.register(handler)` lets other mods plug in their own container menus. A handler is just two methods: place the ingredients, take the output. The executor does the timing. Extra item sources (storage mods) plug in through `InventoryAnalyzer.registerSource`.
-
-## Planner semantics
-
-- Every build runs against a single inventory **budget**: branches reserve what they consume, so two branches can never count the same stack twice. Whole-craft rounding surplus is credited back for later steps.
-- Tag ingredients match whatever variant you actually own (`#planks` accepts birch); identical ingredient slots are merged before counting.
-- If the chosen recipe for an item dead-ends — a cycle like iron ingot ⇄ iron block, or missing ingredients — the other recipes producing that item are tried before the branch is declared MISSING.
-- The executor only takes the output after verifying it actually appeared; if it never does, the run aborts with an error instead of clicking through the rest of the plan.
-
-## Tom's Simple Storage
-
-Optional integration, active when `toms_storage` is installed:
-
-- Planning from an open terminal (storage or crafting variant) counts everything in the network, not just your pockets.
-- *Execute chain* works in the crafting terminal; ingredients are pulled from the network by Tom's own recipe placer.
-- Intermediate crafts are pushed back into the network as each step finishes (if the network is full, the remainder stays in your inventory). The final target stays with you.
+Modded machines aren't supported out of the box either, but the public registry `CraftHandlerRegistry.register(handler)` lets other mods plug in their own container menus. A handler only needs two methods — place the ingredients, take the output — and can optionally opt into batching. The executor does the timing. The Tom's handler in `executor/handlers/compat/` is a working example.
 
 ## Known gaps
 
 - Recipe preferences are in-memory. They don't survive a game restart.
+- Tag ingredients (e.g. `#planks`) default to an item you already own, else the first item of the tag. Click the `#N` badge on the node to pick another one; like recipe choices, this is in-memory only.
 - Execution stops if you close the crafting menu mid-run. Re-open and click Execute again to resume from where the planner left off (it walks the same tree, so already-crafted items now show as HAVE).
 
 ## Versions
@@ -54,6 +50,9 @@ Optional integration, active when `toms_storage` is installed:
 - NeoForge 21.1.228
 - JEI 19.27.0.340
 - Minecraft 1.21.1
+
+Integrations built against:
+- Tom's Simple Storage 1.21-2.3.2
 
 ## Build
 

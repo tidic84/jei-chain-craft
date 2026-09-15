@@ -1,0 +1,43 @@
+# Changelog
+
+## 0.2.0
+
+### Added
+- **Tom's Simple Storage compatibility**: the executor now works from Tom's
+  crafting terminal. Ingredients are pulled straight from the storage network
+  and crafted items are sent back into it. No hard dependency: the mod loads
+  normally without Tom's.
+- **Network stock awareness**: while a Tom's terminal is open, the tree counts
+  items stored in the network in addition to the player inventory.
+- **Ingredient choice for tag ingredients**: recipes that accept several items
+  (e.g. `#c:chests`) show a `#N` indicator in the tree. Clicking it opens a
+  picker to choose which item to use. The choice is remembered per recipe and
+  applied to every matching slot. Without a choice, an item you already own
+  is preferred.
+- "Reset prefs" also clears ingredient choices.
+
+### Performance
+- **Batched crafting**: the executor performs several crafts per click instead
+  of one. Long chains (e.g. 63 gearboxes, ~630 crafts) go from several minutes
+  to a few seconds.
+  - Crafting table / inventory: batch size is limited by free inventory space.
+  - Tom's terminal: batch size is limited by the stock in the network.
+
+### Fixed
+- The progress bar and the "done" message no longer overlap the Pin / Clear
+  pin buttons.
+- Tom's: shift-clicking the output no longer crafts far more than requested
+  (e.g. 193 gearboxes instead of 64).
+- The executor no longer stalls on a step that looked like it crafted nothing
+  (in-flight items in the grid were wrongly counted).
+
+## 0.1.0
+
+Initial release.
+- Recursive crafting tree opened with `C` on an item: inventory slot, JEI
+  ingredient list or JEI bookmarks.
+- Recipe choice when an item has several recipes, remembered.
+- Automatic client-side craft executor (crafting table and 2x2 inventory grid).
+- List of base resources to gather, pinnable to the HUD.
+- Quantity = number of items to craft (default: owned + 1).
+- Debug tools: Dump, Reset prefs.

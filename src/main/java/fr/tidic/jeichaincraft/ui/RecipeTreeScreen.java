@@ -50,6 +50,8 @@ public class RecipeTreeScreen extends Screen {
     private static final int TEXT_OFFSET = ICON_OFFSET + ICON_SIZE + 4;
     private static final int ALT_INDICATOR_X_OFFSET = 160;
     private static final int ALT_INDICATOR_WIDTH = 32;
+    private static final int TAG_INDICATOR_X_OFFSET = 196;
+    private static final int TAG_INDICATOR_WIDTH = 22;
     private static final int TREE_LEFT = 12;
 
     private final ItemStack targetStack;
@@ -169,10 +171,6 @@ public class RecipeTreeScreen extends Screen {
             statusLine = Component.translatable("jeichaincraft.executor.error.no_handler");
             return;
         }
-        if (root.status != NodeStatus.CRAFTABLE) {
-            statusLine = Component.translatable("jeichaincraft.executor.error.missing_resources");
-            return;
-        }
         var steps = CraftPlanner.steps(root);
         if (steps.isEmpty()) {
             statusLine = Component.translatable("jeichaincraft.executor.error.nothing_to_craft");
@@ -220,6 +218,7 @@ public class RecipeTreeScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partial) {
         observeExecutor();
+        if (root != null) root.refreshCounts(inventory);
 
         renderBackground(g, mouseX, mouseY, partial);
         super.render(g, mouseX, mouseY, partial);
@@ -356,6 +355,13 @@ public class RecipeTreeScreen extends Screen {
             g.fill(altX, y + 4, altX + ALT_INDICATOR_WIDTH, y + ROW_HEIGHT - 4, 0xFF1A3A60);
             g.drawString(font, alt, altX + 4, y + 8, 0xFF80C0FF);
         }
+
+        if (row.node.hasIngredientChoice()) {
+            int tagX = xOff + TAG_INDICATOR_X_OFFSET;
+            g.fill(tagX, y + 4, tagX + TAG_INDICATOR_WIDTH, y + ROW_HEIGHT - 4, 0xFF603A1A);
+            g.drawString(font, "#" + row.node.ingredientOptions.size(),
+                    tagX + 4, y + 8, 0xFFFFC080);
+        }
     }
 
     private void drawSidebar(GuiGraphics g) {
@@ -388,24 +394,33 @@ public class RecipeTreeScreen extends Screen {
         g.fill(0, barY, this.width, barY + 1, 0xFF505050);
 
         CraftExecutor active = CraftExecutor.active();
-        int statusX = 168;
+        // Between the left button group (ends with Clear pin at x=278) and
+        // the right group (starts with Dump at width-200).
+        int statusX = 282;
+        int statusRight = this.width - 204;
         int statusY = barY + 12;
 
         if (active != null && active.isRunning()) {
             int total = Math.max(1, active.total());
             int prog = active.progress();
-            int barW = 160;
+            String counter = prog + " / " + total;
+            int barW = Math.max(20, Math.min(160, statusRight - statusX - font.width(counter) - 6));
             int barH = 6;
             int barTop = barY + 13;
             g.fill(statusX, barTop, statusX + barW, barTop + barH, 0xFF202020);
             int fill = (int) (barW * (prog / (float) total));
             g.fill(statusX, barTop, statusX + fill, barTop + barH, 0xFF40FF40);
-            g.drawString(font, prog + " / " + total, statusX + barW + 6, barTop - 1, 0xFFFFFFFF);
+            g.drawString(font, counter, statusX + barW + 6, barTop - 1, 0xFFFFFFFF);
         } else if (!statusLine.getString().isEmpty()) {
             int color = active != null && active.state() == CraftExecutor.State.ABORTED
                     ? 0xFFFF6060
                     : 0xFFFFAA40;
-            g.drawString(font, statusLine, statusX, statusY, color);
+            int maxW = Math.max(0, statusRight - statusX);
+            String text = statusLine.getString();
+            if (font.width(text) > maxW) {
+                text = font.plainSubstrByWidth(text, Math.max(0, maxW - font.width("..."))) + "...";
+            }
+            g.drawString(font, text, statusX, statusY, color);
         }
     }
 
@@ -465,6 +480,13 @@ public class RecipeTreeScreen extends Screen {
                 return true;
             }
 
+            if (r.node.hasIngredientChoice()
+                    && mouseX >= xOff + TAG_INDICATOR_X_OFFSET
+                    && mouseX <= xOff + TAG_INDICATOR_X_OFFSET + TAG_INDICATOR_WIDTH) {
+                openIngredientPicker(r.node);
+                return true;
+            }
+
             int rowRightEdge = treeRightEdge() - SCROLLBAR_WIDTH - 4;
             if (mouseX >= xOff && mouseX <= rowRightEdge) {
                 if (!r.node.isLeaf()) {
@@ -510,6 +532,24 @@ public class RecipeTreeScreen extends Screen {
         Minecraft.getInstance().setScreen(new RecipePickerScreen(
                 this, node.target, candidates, chosen -> {
             prefs.remember(itemId, chosen.id());
+            rebuildTree();
+        }));
+    }
+
+    private void openIngredientPicker(RecipeNode node) {
+        if (!node.hasIngredientChoice() || node.parentRecipeId == null) return;
+        ResourceLocation recipeId = node.parentRecipeId;
+        List<Integer> slots = node.parentSlotIndices;
+        Minecraft.getInstance().setScreen(new IngredientPickerScreen(
+                this, node.ingredientOptions, chosen -> {
+            ResourceLocation pick = ItemId.of(chosen);
+            // Aggregated children carry every slot they fill. Writing the
+            // preference to all of them keeps the swap consistent — picking
+            // "chest" once on a recipe with four chest slots replaces every
+            // chest, not just one.
+            for (int slotIdx : slots) {
+                prefs.rememberIngredient(recipeId, slotIdx, pick);
+            }
             rebuildTree();
         }));
     }

@@ -9,6 +9,7 @@
   "jeichaincraft.screen.tree.no_base_resources": "Nothing to gather.",
   "jeichaincraft.screen.tree.quantity": "Qty",
   "jeichaincraft.screen.picker.title": "Pick a recipe for %s",
+  "jeichaincraft.screen.ingredient_picker.title": "Pick an ingredient",
   "jeichaincraft.button.stack": "Stack",
   "jeichaincraft.button.dump": "Dump",
   "jeichaincraft.button.reset_prefs": "Reset prefs",
@@ -22,7 +23,5 @@
   "jeichaincraft.executor.error.no_player": "Player not in world.",
   "jeichaincraft.executor.error.no_menu": "Container menu closed.",
   "jeichaincraft.executor.error.no_handler": "Open a crafting table (or your inventory) first.",
-  "jeichaincraft.executor.error.nothing_to_craft": "Nothing to craft — all items already in inventory.",
-  "jeichaincraft.executor.error.missing_resources": "Missing base resources — gather the red items first.",
-  "jeichaincraft.executor.error.output_timeout": "Craft produced no %s — out of ingredients? Aborted."
+  "jeichaincraft.executor.error.nothing_to_craft": "Nothing to craft — all items already in inventory."
 }

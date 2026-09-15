@@ -2,6 +2,7 @@ package fr.tidic.jeichaincraft.core;
 
 import fr.tidic.jeichaincraft.JEIChainCraftMod;
 import net.minecraft.client.Minecraft;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -10,6 +11,7 @@ import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -71,6 +73,11 @@ public final class RecipeLookup {
      * Extracts the ingredient list from a recipe holder. Returns one ItemStack
      * per ingredient slot, picking the first matching stack of each Ingredient.
      * Empty ingredients are skipped.
+     *
+     * Display-only helper — does not take user preferences or inventory into
+     * account. Use {@link #ingredientSlots(RecipeHolder)} +
+     * {@link #resolveSlot(RecipeHolder, IngredientSlot, PreferenceManager, InventoryAnalyzer)}
+     * for the planner.
      */
     public static List<ItemStack> ingredientsOf(RecipeHolder<?> holder) {
         List<ItemStack> result = new ArrayList<>();
@@ -86,43 +93,90 @@ public final class RecipeLookup {
     }
 
     /**
-     * One entry per distinct ingredient of a recipe: the Ingredient itself
-     * (so inventory matching honors tags — any plank satisfies #planks) and
-     * how many of it one craft consumes.
+     * One ingredient position of a recipe. {@code slotIndex} is the index in
+     * the raw {@link Recipe#getIngredients()} list (we keep the original index
+     * so empty slots in shaped recipes do not shift the numbering used by
+     * preferences). {@code options} is every {@link ItemStack} the ingredient
+     * accepts — length > 1 means the slot is a tag / list ingredient.
      */
-    public record RecipeIngredient(Ingredient matcher, int count) {}
+    public record IngredientSlot(int slotIndex, List<ItemStack> options, int count) {
+        public boolean isTag() { return options.size() > 1; }
+    }
 
-    /**
-     * Ingredient slots merged by identity: a recipe with 8 iron ingots yields
-     * a single entry of count 8 instead of 8 separate entries. Keeping slots
-     * separate let every slot count the same inventory stack — the planner
-     * reserves from a shared budget, so amounts must be aggregated.
-     */
-    public static List<RecipeIngredient> mergedIngredientsOf(RecipeHolder<?> holder) {
-        List<RecipeIngredient> result = new ArrayList<>();
-        outer:
-        for (Ingredient ing : holder.value().getIngredients()) {
-            if (ing.isEmpty() || ing.getItems().length == 0) continue;
-            for (int i = 0; i < result.size(); i++) {
-                RecipeIngredient existing = result.get(i);
-                if (sameIngredient(existing.matcher(), ing)) {
-                    result.set(i, new RecipeIngredient(existing.matcher(), existing.count() + 1));
-                    continue outer;
+    public static List<IngredientSlot> ingredientSlots(RecipeHolder<?> holder) {
+        List<IngredientSlot> result = new ArrayList<>();
+        Recipe<?> recipe = holder.value();
+        int idx = 0;
+        for (Ingredient ing : recipe.getIngredients()) {
+            if (!ing.isEmpty()) {
+                ItemStack[] items = ing.getItems();
+                if (items.length > 0) {
+                    List<ItemStack> opts = new ArrayList<>(items.length);
+                    for (ItemStack s : items) opts.add(s.copy());
+                    result.add(new IngredientSlot(idx, opts, items[0].getCount()));
                 }
             }
-            result.add(new RecipeIngredient(ing, 1));
+            idx++;
         }
         return result;
     }
 
-    private static boolean sameIngredient(Ingredient a, Ingredient b) {
-        ItemStack[] ia = a.getItems();
-        ItemStack[] ib = b.getItems();
-        if (ia.length != ib.length) return false;
-        for (int i = 0; i < ia.length; i++) {
-            if (!ItemStack.isSameItemSameComponents(ia[i], ib[i])) return false;
+    /**
+     * Picks one {@link ItemStack} for the given slot, in this order:
+     *   1. a user preference stored in {@link PreferenceManager} (if it still
+     *      matches one of the slot's options),
+     *   2. the first option the player already has at least one of in their
+     *      inventory,
+     *   3. {@code options.get(0)} as a fallback.
+     *
+     * The returned stack always has {@code count == slot.count} so callers can
+     * multiply by the number of crafts.
+     */
+    public static ItemStack resolveSlot(RecipeHolder<?> holder,
+                                        IngredientSlot slot,
+                                        PreferenceManager prefs,
+                                        InventoryAnalyzer inventory) {
+        if (prefs != null) {
+            ResourceLocation pref = prefs.ingredientPref(holder.id(), slot.slotIndex());
+            if (pref != null) {
+                for (ItemStack opt : slot.options()) {
+                    if (ItemId.of(opt).equals(pref)) return withCount(opt, slot.count());
+                }
+            }
         }
-        return true;
+        if (inventory != null && slot.options().size() > 1) {
+            for (ItemStack opt : slot.options()) {
+                if (inventory.count(opt) > 0) return withCount(opt, slot.count());
+            }
+        }
+        return withCount(slot.options().get(0), slot.count());
+    }
+
+    private static ItemStack withCount(ItemStack stack, int count) {
+        ItemStack copy = stack.copy();
+        copy.setCount(count);
+        return copy;
+    }
+
+    /** Convenience: smart-resolved ingredient list for a recipe. */
+    public static List<ItemStack> chosenIngredientsOf(RecipeHolder<?> holder,
+                                                      PreferenceManager prefs,
+                                                      InventoryAnalyzer inventory) {
+        List<ItemStack> result = new ArrayList<>();
+        for (IngredientSlot slot : ingredientSlots(holder)) {
+            result.add(resolveSlot(holder, slot, prefs, inventory));
+        }
+        return result;
+    }
+
+    /** Used by the picker UI to walk all alternatives of one slot. */
+    public static List<ItemStack> optionsForSlot(RecipeHolder<?> holder, int slotIndex) {
+        Recipe<?> recipe = holder.value();
+        List<Ingredient> ings = recipe.getIngredients();
+        if (slotIndex < 0 || slotIndex >= ings.size()) return List.of();
+        Ingredient ing = ings.get(slotIndex);
+        if (ing.isEmpty()) return List.of();
+        return Arrays.stream(ing.getItems()).map(ItemStack::copy).collect(Collectors.toList());
     }
 
     public static int outputCount(RecipeHolder<?> holder) {

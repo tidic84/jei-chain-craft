@@ -31,13 +31,6 @@ repositories {
         name = "Jared's maven (JEI)"
         url = "https://maven.blamejared.com/"
     }
-    maven {
-        name = "Modrinth"
-        url = "https://api.modrinth.com/maven"
-        content {
-            includeGroup "maven.modrinth"
-        }
-    }
 }
 
 base {
@@ -132,11 +125,6 @@ dependencies {
     compileOnly "mezz.jei:jei-${jei_mc_version}-common-api:${jei_version}"
     compileOnly "mezz.jei:jei-${jei_mc_version}-neoforge-api:${jei_version}"
     localRuntime "mezz.jei:jei-${jei_mc_version}-neoforge:${jei_version}"
-
-    // Tom's Simple Storage - optional compat (terminal inventory + craft executor).
-    // Guarded behind ModList.isLoaded at runtime; players without the mod are unaffected.
-    compileOnly "maven.modrinth:toms-storage:${toms_storage_version}"
-    localRuntime "maven.modrinth:toms-storage:${toms_storage_version}"
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

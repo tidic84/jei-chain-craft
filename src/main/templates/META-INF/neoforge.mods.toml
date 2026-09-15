@@ -36,10 +36,3 @@ and where the chain breaks.
     versionRange="[19.0.0,)"
     ordering="AFTER"
     side="CLIENT"
-
-[[dependencies.${mod_id}]]
-    modId="toms_storage"
-    type="optional"
-    versionRange="[1.21-2.0.0,)"
-    ordering="AFTER"
-    side="CLIENT"
