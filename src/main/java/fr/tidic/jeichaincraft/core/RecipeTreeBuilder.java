@@ -3,9 +3,12 @@ package fr.tidic.jeichaincraft.core;
 import fr.tidic.jeichaincraft.JEIChainCraftMod;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -78,8 +81,22 @@ public class RecipeTreeBuilder {
             return node;
         }
 
-        node.alternatives = candidates.size() - 1;
-        RecipeHolder<?> chosen = prefs.choose(itemId, candidates);
+        // Drop candidates whose every slot only accepts an item already on the
+        // recursion path — e.g. a modded "iron_block → 9 iron" recipe pulled
+        // in to satisfy iron, which would then need iron_block, which needs
+        // iron again. Without this filter the chosen recipe is the first one
+        // found, even if it is the unusable cyclic one.
+        List<RecipeHolder<?>> usable = new ArrayList<>();
+        for (RecipeHolder<?> h : candidates) {
+            if (!alwaysCycles(h, path)) usable.add(h);
+        }
+        if (usable.isEmpty()) {
+            node.status = NodeStatus.MISSING;
+            return node;
+        }
+
+        node.alternatives = usable.size() - 1;
+        RecipeHolder<?> chosen = prefs.choose(itemId, usable);
         node.recipeId = chosen.id().toString();
         JEIChainCraftMod.LOGGER.info("  d={} chose {} for {} (alternatives={})",
                 depth, node.recipeId, itemId, node.alternatives);
@@ -89,10 +106,31 @@ public class RecipeTreeBuilder {
         node.crafts = (amountToProduce + perCraft - 1) / perCraft;
 
         path.add(itemId);
+        // Aggregate slots by the resolved item — 4 cogwheel slots × 1 each
+        // need to show as one "0/4 cogwheels" child, not four independent
+        // "have/1" checks that each look satisfied while the recipe as a
+        // whole cannot be filled. Insertion order is preserved so the tree
+        // still reads in slot order.
+        LinkedHashMap<ResourceLocation, IngredientGroup> groups = new LinkedHashMap<>();
+        for (RecipeLookup.IngredientSlot slot : RecipeLookup.ingredientSlots(chosen)) {
+            ItemStack ing = RecipeLookup.resolveSlot(chosen, slot, prefs, inventory);
+            ResourceLocation id = ItemId.of(ing);
+            IngredientGroup g = groups.get(id);
+            if (g == null) {
+                groups.put(id, new IngredientGroup(ing, slot, ing.getCount()));
+            } else {
+                g.totalPerCraft += ing.getCount();
+                g.slotIndices.add(slot.slotIndex());
+            }
+        }
+
         boolean anyMissing = false;
-        for (ItemStack ing : RecipeLookup.ingredientsOf(chosen)) {
-            int ingNeed = ing.getCount() * node.crafts;
-            RecipeNode child = build(ing, ingNeed, false, path, depth + 1);
+        for (IngredientGroup g : groups.values()) {
+            int ingNeed = g.totalPerCraft * node.crafts;
+            RecipeNode child = build(g.stack, ingNeed, false, path, depth + 1);
+            child.parentRecipeId = chosen.id();
+            child.parentSlotIndices = g.slotIndices;
+            if (g.firstSlot.isTag()) child.ingredientOptions = g.firstSlot.options();
             node.children.add(child);
             if (child.status == NodeStatus.MISSING || child.status == NodeStatus.CYCLE) {
                 anyMissing = true;
@@ -102,5 +140,42 @@ public class RecipeTreeBuilder {
 
         node.status = anyMissing ? NodeStatus.MISSING : NodeStatus.CRAFTABLE;
         return node;
+    }
+
+    private static final class IngredientGroup {
+        final ItemStack stack;
+        final RecipeLookup.IngredientSlot firstSlot;
+        final List<Integer> slotIndices = new ArrayList<>();
+        int totalPerCraft;
+
+        IngredientGroup(ItemStack stack, RecipeLookup.IngredientSlot firstSlot, int countPerCraft) {
+            this.stack = stack;
+            this.firstSlot = firstSlot;
+            this.totalPerCraft = countPerCraft;
+            this.slotIndices.add(firstSlot.slotIndex());
+        }
+    }
+
+    /**
+     * True if the recipe is guaranteed to drive recursion back into the path —
+     * every required slot's only options are items currently being resolved up
+     * the stack. A slot that has at least one non-path option lets the resolver
+     * pick that one, so it is not counted against the candidate.
+     */
+    private static boolean alwaysCycles(RecipeHolder<?> holder, Set<ResourceLocation> path) {
+        for (Ingredient ing : holder.value().getIngredients()) {
+            if (ing.isEmpty()) continue;
+            ItemStack[] options = ing.getItems();
+            if (options.length == 0) continue;
+            boolean hasEscape = false;
+            for (ItemStack opt : options) {
+                if (!path.contains(ItemId.of(opt))) {
+                    hasEscape = true;
+                    break;
+                }
+            }
+            if (!hasEscape) return true;
+        }
+        return false;
     }
 }

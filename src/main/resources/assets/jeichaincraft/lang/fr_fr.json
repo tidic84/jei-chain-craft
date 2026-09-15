@@ -9,6 +9,7 @@
   "jeichaincraft.screen.tree.no_base_resources": "Rien a recolter.",
   "jeichaincraft.screen.tree.quantity": "Qte",
   "jeichaincraft.screen.picker.title": "Choisir une recette pour %s",
+  "jeichaincraft.screen.ingredient_picker.title": "Choisir un ingredient",
   "jeichaincraft.button.stack": "Stack",
   "jeichaincraft.button.dump": "Dump",
   "jeichaincraft.button.reset_prefs": "Reset prefs",
