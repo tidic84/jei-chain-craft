@@ -2,7 +2,7 @@
 
 NeoForge 1.21.1 addon for JEI.
 
-Hover any item, press `C`. A recursive crafting chain opens — what's already in your inventory, what's still missing, in what order to craft. On a crafting table — or a storage-network crafting terminal (Tom's Simple Storage) — click *Execute chain* and it runs the whole thing for you.
+Hover any item, press `C`. A recursive crafting chain opens — what's already in your inventory, what's still missing, in what order to craft. On a crafting table — or a storage-network crafting terminal (Tom's Simple Storage, Refined Storage) — click *Execute chain* and it runs the whole thing for you.
 
 The point: modpacks where figuring out "what do I actually need to farm" takes ten clicks through JEI.
 
@@ -14,7 +14,7 @@ The point: modpacks where figuring out "what do I actually need to farm" takes t
   - JEI's right-side ingredient list,
   - JEI's bookmarks.
 - The quantity field is what you want to **craft**, not the total to have. `qty = 2` with one already in your pack means crafting 2 more, ending with 3.
-- Open a crafting table (or a supported crafting terminal, see [Compatibility](#compatibility)) and click *Execute chain*. The mod sends the same packets the game's recipe book sends, so it works on any server — no server-side mod required. Crafts are batched, so long chains take seconds, not minutes.
+- Open a crafting table (or a supported crafting terminal, see [Compatibility](#compatibility)) and click *Execute chain*. The mod sends the same packets the game's recipe book / the storage mod's own recipe transfer send, so it works on any server — no server-side mod required. Crafts are batched, so long chains take seconds, not minutes.
 - Click *Pin* to copy the base-resource list onto an HUD overlay (top-left). Counts update live as you collect items; a row goes grey + struck through when it's satisfied.
 
 A `+N` badge next to a node means there are other recipes producing that item. Click the badge to choose one — the choice sticks for that item until you close the game (or click *Reset prefs*).
@@ -28,8 +28,12 @@ Optional integrations, detected at runtime. None of these mods is required: with
 | Mod | Supported menu | What you get |
 | --- | --- | --- |
 | [Tom's Simple Storage](https://www.curseforge.com/minecraft/mc-mods/toms-storage) | Crafting Terminal | Execute chains from the terminal. Ingredients come from the storage network, crafted items go back into it. The tree counts items stored in the network. |
+| [Refined Storage 2](https://www.curseforge.com/minecraft/mc-mods/refined-storage) | Crafting Grid | Same as Tom's: execute from the grid, ingredients pulled from the network (then your inventory), results sent back, network stock counted in the tree. |
+
 Notes:
-- On storage terminals, batch size is limited by what the network holds, so the crafted count stays exact even when ingredients run low.- If a mod renames its menu classes, the integration silently stops matching and *Execute chain* reports that no handler was found.
+- On storage terminals, batch size is limited by what the network holds, so the crafted count stays exact even when ingredients run low.
+- Refined Storage: only the Crafting Grid is supported (the plain and portable grids have no crafting). Items with components (enchantments, custom data…) are not counted in the network stock.
+- If a mod renames its menu classes, the integration silently stops matching and *Execute chain* reports that no handler was found.
 
 ## Scope
 
@@ -37,7 +41,7 @@ Crafting recipes only — shaped and shapeless, 2x2 or 3x3.
 
 Not included by design: smelting, blasting, smoking, campfire cooking, stonecutting, smithing. The tool is for *recursive crafting*, not for automating every transformation in the game. Ores that need a furnace stay as leaves with status MISSING.
 
-Modded machines aren't supported out of the box either, but the public registry `CraftHandlerRegistry.register(handler)` lets other mods plug in their own container menus. A handler only needs two methods — place the ingredients, take the output — and can optionally opt into batching. The executor does the timing. The Tom's handler in `executor/handlers/compat/` is a working example.
+Modded machines aren't supported out of the box either, but the public registry `CraftHandlerRegistry.register(handler)` lets other mods plug in their own container menus. A handler only needs two methods — place the ingredients, take the output — and can optionally opt into batching. The executor does the timing. The Tom's and Refined Storage handlers in `executor/handlers/compat/` are working examples.
 
 ## Known gaps
 
@@ -53,6 +57,7 @@ Modded machines aren't supported out of the box either, but the public registry 
 
 Integrations built against:
 - Tom's Simple Storage 1.21-2.3.2
+- Refined Storage (NeoForge) 2.0.9
 
 ## Build
 

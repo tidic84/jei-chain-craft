@@ -79,6 +79,12 @@ public interface CraftHandler {
     default int outputSlotIndex() {
         return 0;
     }
+
+    /** Menu-aware variant for containers whose slot layout is not fixed. */
+    default int outputSlotIndex(AbstractContainerMenu menu) {
+        return outputSlotIndex();
+    }
+
     /**
      * Maximum ticks to wait for the output slot to populate before giving up
      * on a craft. Tom's auto-refill round-trip is variable so generous

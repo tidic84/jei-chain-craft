@@ -17,6 +17,11 @@ public final class ChainScreens {
 
     private ChainScreens() {}
 
+    /** Shared preferences, also read by executors that pick tag ingredients. */
+    public static PreferenceManager prefs() {
+        return PREFS;
+    }
+
     public static void openTreeFor(ItemStack output) {
         int qty = Math.max(1, output.getCount());
         Minecraft.getInstance().setScreen(new RecipeTreeScreen(output, qty, INVENTORY, PREFS));

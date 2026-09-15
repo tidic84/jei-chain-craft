@@ -1,6 +1,7 @@
 package fr.tidic.jeichaincraft.executor;
 
 import fr.tidic.jeichaincraft.executor.handlers.VanillaCraftingHandler;
+import fr.tidic.jeichaincraft.executor.handlers.compat.RefinedStorageCraftingGridHandler;
 import fr.tidic.jeichaincraft.executor.handlers.compat.TomsCraftingTerminalHandler;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 
@@ -24,6 +25,7 @@ public final class CraftHandlerRegistry {
 
     static {
         register(new TomsCraftingTerminalHandler());
+        register(new RefinedStorageCraftingGridHandler());
         register(new VanillaCraftingHandler());
     }
 

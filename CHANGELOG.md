@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.3.0
+
+### Added
+- **Refined Storage 2 compatibility**: the executor now works from the Refined
+  Storage crafting grid. Ingredients are placed through RS's own recipe
+  transfer (network first, then player inventory), and crafted items are sent
+  back into the network. No hard dependency: the mod loads normally without RS.
+  - Shaped recipes keep their layout in the grid.
+  - A tag ingredient chosen in the picker is the only one sent to RS;
+    otherwise RS uses the alternative it has the most of.
+- **Network stock awareness for Refined Storage**: while an RS grid is open,
+  the tree counts items stored in the network in addition to the player
+  inventory.
+- Batched crafting also applies to the RS crafting grid, limited by the stock
+  in the network.
+
+### Changed
+- Tom's Simple Storage and Refined Storage now share the same batching and
+  output-handling code. Tom's behavior is unchanged.
+
+### Known limitations
+- Only the RS crafting grid is supported (the plain and portable grids have no
+  crafting).
+- Items with components (enchantments, custom data...) are not counted in the
+  RS network stock.
+
 ## 0.2.0
 
 ### Added

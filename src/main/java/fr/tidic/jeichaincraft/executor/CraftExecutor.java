@@ -137,7 +137,7 @@ public final class CraftExecutor {
                 // to the placement / refill packet at all; checking immediately
                 // would just see the previous (or empty) state of the slot.
                 if (tickCounter < currentHandler.placeToTakeTicks()) return;
-                if (outputReady(menu, step.output().getItem(), currentHandler.outputSlotIndex())) {
+                if (outputReady(menu, step.output().getItem(), currentHandler.outputSlotIndex(menu))) {
                     int staged = Math.min(batchRequested, currentHandler.stagedCrafts(menu, batchRequested));
                     // Placement packets may sync over a couple of ticks; give
                     // the full batch a moment to show up before settling for less.
@@ -152,7 +152,7 @@ public final class CraftExecutor {
                     // next so a single starved step doesn't freeze the plan.
                     JEIChainCraftMod.LOGGER.warn(
                             "Step {} timed out waiting for output (slot {}); moving on",
-                            step.recipeId(), currentHandler.outputSlotIndex());
+                            step.recipeId(), currentHandler.outputSlotIndex(menu));
                     advanceStep();
                 }
             }
