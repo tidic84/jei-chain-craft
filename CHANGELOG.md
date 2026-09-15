@@ -3,6 +3,9 @@
 ## 0.3.0
 
 ### Added
+- **Fabric support** (Minecraft 1.21.1): the mod ships a Fabric jar alongside
+  the NeoForge one, with the same features. Requires Fabric API and JEI for
+  Fabric.
 - **Refined Storage 2 compatibility**: the executor now works from the Refined
   Storage crafting grid. Ingredients are placed through RS's own recipe
   transfer (network first, then player inventory), and crafted items are sent

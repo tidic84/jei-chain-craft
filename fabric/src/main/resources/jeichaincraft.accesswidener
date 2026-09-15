@@ -1,0 +1,4 @@
+accessWidener v2 named
+
+# Hovered slot of container screens, read by the chain hotkey (NeoForge exposes getSlotUnderMouse() instead).
+accessible field net/minecraft/client/gui/screens/inventory/AbstractContainerScreen hoveredSlot Lnet/minecraft/world/inventory/Slot;

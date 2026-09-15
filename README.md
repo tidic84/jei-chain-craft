@@ -51,9 +51,13 @@ Modded machines aren't supported out of the box either, but the public registry 
 
 ## Versions
 
-- NeoForge 21.1.228
-- JEI 19.27.0.340
 - Minecraft 1.21.1
+- JEI 19.27.0.340
+
+| Loader | Version |
+| --- | --- |
+| NeoForge | 21.1.228 |
+| Fabric | Loader 0.19.5, Fabric API 0.116.17+1.21.1 |
 
 Integrations built against:
 - Tom's Simple Storage 1.21-2.3.2
@@ -67,7 +71,19 @@ JDK 21.
 ./gradlew build
 ```
 
-Jar in `build/libs/`. Drop it next to JEI in your `mods/`.
+One jar per loader:
+- NeoForge: `neoforge/build/libs/`
+- Fabric: `fabric/build/libs/`
+
+(The `-sources` jars are not mods.)
+
+Drop the one matching your loader next to JEI in your `mods/`. Fabric also needs Fabric API.
+
+Project layout (same approach as JEI and the MultiLoader template — one branch per Minecraft version, all loaders in that branch):
+- `common/` — all the mod logic, compiled against vanilla Minecraft only.
+- `neoforge/`, `fabric/` — entry points that wire `common` to each loader's events.
+
+Dev clients: `./gradlew :neoforge:runClient` (game dir `run/`) and `./gradlew :fabric:runClient` (game dir `fabric/run-fabric/`).
 
 ## License
 
