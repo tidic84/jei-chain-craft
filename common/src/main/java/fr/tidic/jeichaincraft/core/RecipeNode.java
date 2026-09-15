@@ -1,6 +1,6 @@
 package fr.tidic.jeichaincraft.core;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -32,7 +32,7 @@ public class RecipeNode {
     public boolean expanded = true;
     /** True only for the user's chosen target. Display + algo differ from ingredients. */
     public boolean isRoot;
-    public ResourceLocation parentRecipeId;
+    public Identifier parentRecipeId;
     /**
      * Slot indices of the parent recipe that this child satisfies. Usually
      * one entry; multiple when several slots accept the same item and were

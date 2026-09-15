@@ -5,14 +5,10 @@ plugins {
 
 neoForge {
     version = neoforge_version
-    parchment {
-        minecraftVersion = parchment_minecraft
-        mappingsVersion = parchment_version
-    }
     runs {
         configureEach {
-            // Shared dev instance at the repo root (holds test mods like Tom's / RS).
-            gameDirectory = rootProject.file('run')
+            // Own dev instance per version branch: the root run/ holds 1.21.1 test mods.
+            gameDirectory = project.file('run-neoforge')
             ideName = "NeoForge ${it.name.capitalize()} (${project.path})"
             logLevel = org.slf4j.event.Level.DEBUG
         }

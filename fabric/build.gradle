@@ -1,19 +1,16 @@
 plugins {
     id 'multiloader-loader'
-    id 'net.fabricmc.fabric-loom-remap'
+    id 'net.fabricmc.fabric-loom'
 }
 
 dependencies {
+    // 26.x ships unobfuscated: no mappings layer, and mods are plain dependencies.
     minecraft "com.mojang:minecraft:${minecraft_version}"
-    mappings loom.layered {
-        officialMojangMappings()
-        parchment("org.parchmentmc.data:parchment-${parchment_minecraft}:${parchment_version}@zip")
-    }
-    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    implementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
 
-    modCompileOnly "mezz.jei:jei-${jei_mc_version}-fabric-api:${jei_version}"
-    modLocalRuntime "mezz.jei:jei-${jei_mc_version}-fabric:${jei_version}"
+    compileOnly "mezz.jei:jei-${jei_mc_version}-fabric-api:${jei_version}"
+    runtimeOnly "mezz.jei:jei-${jei_mc_version}-fabric:${jei_version}"
 }
 
 loom {

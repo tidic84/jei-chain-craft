@@ -1,103 +1,132 @@
 package fr.tidic.jeichaincraft.core;
 
 import fr.tidic.jeichaincraft.JEIChainCraftMod;
+import fr.tidic.jeichaincraft.jei.JEIChainCraftPlugin;
+import mezz.jei.api.constants.RecipeTypes;
+import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.context.ContextMap;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
-import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
-import net.minecraft.world.item.crafting.RecipeManager;
+import net.minecraft.world.item.crafting.ShapedRecipe;
+import net.minecraft.world.item.crafting.display.RecipeDisplay;
+import net.minecraft.world.item.crafting.display.SlotDisplayContext;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
- * Resolves "what recipes produce this item?" against the vanilla recipe manager.
- * MVP scope: crafting + smelting via the standard RecipeManager.
- * Modded recipe categories (Create, AE2, etc.) are NOT covered here — a follow-up
- * API will let other mods register their own lookups.
+ * Resolves "what recipes produce this item?".
+ *
+ * Since Minecraft 1.21.2 the server no longer sends recipes to the client, so
+ * the client-side recipe access is empty. JEI syncs them itself (JEI must be
+ * on the server, which is always the case in singleplayer) and exposes them
+ * through its recipe manager, so crafting recipes are read from there.
+ *
+ * Scope: crafting table recipes only. Cooking, stonecutting and smithing are
+ * intentionally excluded — the chain tool is about recursive crafting.
  */
 public final class RecipeLookup {
     private RecipeLookup() {}
 
+    /** Every crafting recipe JEI knows about; empty until the JEI runtime is available. */
+    public static Stream<RecipeHolder<CraftingRecipe>> craftingRecipes() {
+        IJeiRuntime runtime = JEIChainCraftPlugin.runtime();
+        if (runtime == null) return Stream.empty();
+        return runtime.getRecipeManager().createRecipeLookup(RecipeTypes.CRAFTING).get();
+    }
+
+    public static Identifier idOf(RecipeHolder<?> holder) {
+        return holder.id().identifier();
+    }
+
+    public static Optional<RecipeHolder<?>> byId(Identifier id) {
+        return craftingRecipes()
+                .filter(h -> idOf(h).equals(id))
+                .<RecipeHolder<?>>map(h -> h)
+                .findFirst();
+    }
+
+    /** Result stack of a recipe, resolved from its display (recipes no longer expose it directly). */
+    public static ItemStack resultOf(RecipeHolder<?> holder) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return ItemStack.EMPTY;
+        List<RecipeDisplay> displays = holder.value().display();
+        if (displays.isEmpty()) return ItemStack.EMPTY;
+        ContextMap context = SlotDisplayContext.fromLevel(mc.level);
+        return displays.getFirst().result().resolveForFirstStack(context);
+    }
+
     public static List<RecipeHolder<?>> recipesProducing(ItemStack stack) {
         List<RecipeHolder<?>> matches = new ArrayList<>();
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null) return matches;
-
-        RecipeManager rm = mc.level.getRecipeManager();
-        for (RecipeHolder<?> holder : rm.getRecipes()) {
-            Recipe<?> recipe = holder.value();
-            // Scope: crafting table recipes only. Cooking (smelting / blasting /
-            // smoking / campfire), stonecutting and smithing are intentionally
-            // excluded — the chain tool is about recursive crafting, not
-            // automating every transformation in the game.
-            if (!(recipe instanceof CraftingRecipe)) continue;
-
-            ItemStack out = recipe.getResultItem(mc.level.registryAccess());
-            if (out.isEmpty() || !ItemStack.isSameItem(out, stack)) continue;
-            if (selfReferencing(recipe, stack)) {
+        craftingRecipes().forEach(holder -> {
+            if (holder.value().isSpecial()) return;
+            ItemStack out = resultOf(holder);
+            if (out.isEmpty() || !ItemStack.isSameItem(out, stack)) return;
+            if (selfReferencing(holder, stack)) {
                 JEIChainCraftMod.LOGGER.info("Skipping self-ref recipe {} (output appears as ingredient)",
-                        holder.id());
-                continue;
+                        idOf(holder));
+                return;
             }
             matches.add(holder);
-        }
+        });
         JEIChainCraftMod.LOGGER.info("recipesProducing({}) -> {}",
                 stack.getItem(),
-                matches.stream().map(h -> h.id().toString()).collect(Collectors.joining(", ")));
+                matches.stream().map(h -> idOf(h).toString()).collect(Collectors.joining(", ")));
         return matches;
     }
 
     /**
-     * True if any ingredient of {@code recipe} accepts {@code output}.
-     * Such recipes (decorated trim duplicates, upgrade recipes that consume and
-     * re-emit the same item, modded "repair" recipes) would otherwise drive
-     * the tree builder into an apparent cycle. The user's bug report —
-     * "sticky_piston → sticky_piston" — is exactly this case for some data pack
-     * that lists the target on both sides of the recipe.
+     * Ingredient positions of a recipe. Shaped recipes keep empty positions so
+     * slot indices stay stable (they key the ingredient preferences).
      */
-    private static boolean selfReferencing(Recipe<?> recipe, ItemStack output) {
-        for (Ingredient ing : recipe.getIngredients()) {
-            if (ing.isEmpty()) continue;
-            if (ing.test(output)) return true;
+    private static List<Optional<Ingredient>> rawIngredients(RecipeHolder<?> holder) {
+        if (holder.value() instanceof ShapedRecipe shaped) return shaped.getIngredients();
+        return holder.value().placementInfo().ingredients().stream().map(Optional::of).toList();
+    }
+
+    private static List<ItemStack> optionsOf(Ingredient ingredient) {
+        return ingredient.items().map(item -> new ItemStack(item.value())).toList();
+    }
+
+    /**
+     * True if any ingredient of the recipe accepts {@code output}. Such
+     * recipes (decorated duplicates, upgrade recipes that consume and re-emit
+     * the same item) would otherwise drive the tree builder into a cycle.
+     */
+    private static boolean selfReferencing(RecipeHolder<?> holder, ItemStack output) {
+        for (Optional<Ingredient> ing : rawIngredients(holder)) {
+            if (ing.isPresent() && ing.get().test(output)) return true;
         }
         return false;
     }
 
     /**
-     * Extracts the ingredient list from a recipe holder. Returns one ItemStack
-     * per ingredient slot, picking the first matching stack of each Ingredient.
-     * Empty ingredients are skipped.
-     *
-     * Display-only helper — does not take user preferences or inventory into
-     * account. Use {@link #ingredientSlots(RecipeHolder)} +
-     * {@link #resolveSlot(RecipeHolder, IngredientSlot, PreferenceManager, InventoryAnalyzer)}
-     * for the planner.
+     * One stack per ingredient slot, picking the first option of each.
+     * Display-only helper — does not take preferences or inventory into
+     * account; the planner uses {@link #ingredientSlots} + {@link #resolveSlot}.
      */
     public static List<ItemStack> ingredientsOf(RecipeHolder<?> holder) {
         List<ItemStack> result = new ArrayList<>();
-        Recipe<?> recipe = holder.value();
-        for (Ingredient ing : recipe.getIngredients()) {
+        for (Optional<Ingredient> ing : rawIngredients(holder)) {
             if (ing.isEmpty()) continue;
-            ItemStack[] items = ing.getItems();
-            if (items.length > 0) {
-                result.add(items[0].copy());
-            }
+            List<ItemStack> options = optionsOf(ing.get());
+            if (!options.isEmpty()) result.add(options.getFirst().copy());
         }
         return result;
     }
 
     /**
-     * One ingredient position of a recipe. {@code slotIndex} is the index in
-     * the raw {@link Recipe#getIngredients()} list (we keep the original index
-     * so empty slots in shaped recipes do not shift the numbering used by
-     * preferences). {@code options} is every {@link ItemStack} the ingredient
-     * accepts — length > 1 means the slot is a tag / list ingredient.
+     * One ingredient position of a recipe. {@code slotIndex} is the position in
+     * the recipe's ingredient list (empty shaped positions included).
+     * {@code options} is every stack the ingredient accepts — more than one
+     * means the slot is a tag / list ingredient.
      */
     public record IngredientSlot(int slotIndex, List<ItemStack> options, int count) {
         public boolean isTag() { return options.size() > 1; }
@@ -105,29 +134,29 @@ public final class RecipeLookup {
 
     public static List<IngredientSlot> ingredientSlots(RecipeHolder<?> holder) {
         List<IngredientSlot> result = new ArrayList<>();
-        Recipe<?> recipe = holder.value();
-        int idx = 0;
-        for (Ingredient ing : recipe.getIngredients()) {
-            if (!ing.isEmpty()) {
-                ItemStack[] items = ing.getItems();
-                if (items.length > 0) {
-                    List<ItemStack> opts = new ArrayList<>(items.length);
-                    for (ItemStack s : items) opts.add(s.copy());
-                    result.add(new IngredientSlot(idx, opts, items[0].getCount()));
-                }
-            }
-            idx++;
+        List<Optional<Ingredient>> ingredients = rawIngredients(holder);
+        for (int idx = 0; idx < ingredients.size(); idx++) {
+            Optional<Ingredient> ing = ingredients.get(idx);
+            if (ing.isEmpty()) continue;
+            List<ItemStack> options = optionsOf(ing.get());
+            if (!options.isEmpty()) result.add(new IngredientSlot(idx, options, 1));
         }
         return result;
     }
 
+    /** Accepted stacks of every non-empty slot, used by the tree builder's cycle check. */
+    public static List<List<ItemStack>> slotOptions(RecipeHolder<?> holder) {
+        List<List<ItemStack>> result = new ArrayList<>();
+        for (IngredientSlot slot : ingredientSlots(holder)) result.add(slot.options());
+        return result;
+    }
+
     /**
-     * Picks one {@link ItemStack} for the given slot, in this order:
+     * Picks one stack for the given slot, in this order:
      *   1. a user preference stored in {@link PreferenceManager} (if it still
      *      matches one of the slot's options),
-     *   2. the first option the player already has at least one of in their
-     *      inventory,
-     *   3. {@code options.get(0)} as a fallback.
+     *   2. the first option the player already has at least one of,
+     *   3. the first option as a fallback.
      *
      * The returned stack always has {@code count == slot.count} so callers can
      * multiply by the number of crafts.
@@ -137,7 +166,7 @@ public final class RecipeLookup {
                                         PreferenceManager prefs,
                                         InventoryAnalyzer inventory) {
         if (prefs != null) {
-            ResourceLocation pref = prefs.ingredientPref(holder.id(), slot.slotIndex());
+            Identifier pref = prefs.ingredientPref(idOf(holder), slot.slotIndex());
             if (pref != null) {
                 for (ItemStack opt : slot.options()) {
                     if (ItemId.of(opt).equals(pref)) return withCount(opt, slot.count());
@@ -149,7 +178,7 @@ public final class RecipeLookup {
                 if (inventory.count(opt) > 0) return withCount(opt, slot.count());
             }
         }
-        return withCount(slot.options().get(0), slot.count());
+        return withCount(slot.options().getFirst(), slot.count());
     }
 
     private static ItemStack withCount(ItemStack stack, int count) {
@@ -171,63 +200,46 @@ public final class RecipeLookup {
 
     /** Used by the picker UI to walk all alternatives of one slot. */
     public static List<ItemStack> optionsForSlot(RecipeHolder<?> holder, int slotIndex) {
-        Recipe<?> recipe = holder.value();
-        List<Ingredient> ings = recipe.getIngredients();
-        if (slotIndex < 0 || slotIndex >= ings.size()) return List.of();
-        Ingredient ing = ings.get(slotIndex);
-        if (ing.isEmpty()) return List.of();
-        return Arrays.stream(ing.getItems()).map(ItemStack::copy).collect(Collectors.toList());
+        List<Optional<Ingredient>> ingredients = rawIngredients(holder);
+        if (slotIndex < 0 || slotIndex >= ingredients.size()) return List.of();
+        return ingredients.get(slotIndex).map(RecipeLookup::optionsOf).orElse(List.of());
     }
 
     public static int outputCount(RecipeHolder<?> holder) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null) return 1;
-        ItemStack out = holder.value().getResultItem(mc.level.registryAccess());
-        return Math.max(1, out.getCount());
+        return Math.max(1, resultOf(holder).getCount());
     }
 
     /**
-     * Verbose dump used by the Debug button in the tree screen. Walks every
-     * recipe in the manager (not just matching ones), logging output, type,
-     * filtered-or-not, and full ingredient list for anything that matches the
-     * target. Use this to understand which recipe the algorithm actually chose
-     * when the tree looks wrong.
+     * Verbose dump used by the Debug button in the tree screen: every crafting
+     * recipe producing the target, with type, self-reference flag and full
+     * ingredient list.
      */
     public static void dumpDebug(ItemStack target) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null) {
-            JEIChainCraftMod.LOGGER.warn("dumpDebug: no level");
+        if (JEIChainCraftPlugin.runtime() == null) {
+            JEIChainCraftMod.LOGGER.warn("dumpDebug: JEI runtime not available");
             return;
         }
-        RecipeManager rm = mc.level.getRecipeManager();
         JEIChainCraftMod.LOGGER.info("===== DUMP for target {} =====", target.getItem());
-        int totalScanned = 0;
-        int totalMatched = 0;
-        for (RecipeHolder<?> holder : rm.getRecipes()) {
-            totalScanned++;
-            Recipe<?> recipe = holder.value();
-            ItemStack out = recipe.getResultItem(mc.level.registryAccess());
-            if (out.isEmpty() || !ItemStack.isSameItem(out, target)) continue;
-            totalMatched++;
-            String type = recipe.getClass().getSimpleName();
-            boolean isCrafting = recipe instanceof CraftingRecipe;
-            boolean selfRef = selfReferencing(recipe, target);
-            JEIChainCraftMod.LOGGER.info("  MATCH id={} type={} crafting={} self-ref={}",
-                    holder.id(), type, isCrafting, selfRef);
-            int slotIdx = 0;
-            for (Ingredient ing : recipe.getIngredients()) {
-                if (ing.isEmpty()) { slotIdx++; continue; }
-                StringBuilder sb = new StringBuilder();
-                for (ItemStack item : ing.getItems()) {
-                    if (sb.length() > 0) sb.append(", ");
-                    sb.append(item.getItem());
-                }
+        int[] totals = new int[2];
+        craftingRecipes().forEach(holder -> {
+            totals[0]++;
+            ItemStack out = resultOf(holder);
+            if (out.isEmpty() || !ItemStack.isSameItem(out, target)) return;
+            totals[1]++;
+            JEIChainCraftMod.LOGGER.info("  MATCH id={} type={} special={} self-ref={}",
+                    idOf(holder), holder.value().getClass().getSimpleName(),
+                    holder.value().isSpecial(), selfReferencing(holder, target));
+            List<Optional<Ingredient>> ingredients = rawIngredients(holder);
+            for (int slotIdx = 0; slotIdx < ingredients.size(); slotIdx++) {
+                Optional<Ingredient> ing = ingredients.get(slotIdx);
+                if (ing.isEmpty()) continue;
+                String items = optionsOf(ing.get()).stream()
+                        .map(s -> s.getItem().toString())
+                        .collect(Collectors.joining(", "));
                 JEIChainCraftMod.LOGGER.info("      ing[{}] = [{}] test(target)={}",
-                        slotIdx, sb, ing.test(target));
-                slotIdx++;
+                        slotIdx, items, ing.get().test(target));
             }
-        }
-        JEIChainCraftMod.LOGGER.info("===== DUMP done: scanned={} matched={} =====",
-                totalScanned, totalMatched);
+        });
+        JEIChainCraftMod.LOGGER.info("===== DUMP done: scanned={} matched={} =====", totals[0], totals[1]);
     }
 }

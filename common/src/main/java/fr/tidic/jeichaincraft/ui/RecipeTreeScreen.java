@@ -12,12 +12,13 @@ import fr.tidic.jeichaincraft.executor.CraftExecutor;
 import fr.tidic.jeichaincraft.executor.CraftHandlerRegistry;
 import fr.tidic.jeichaincraft.hud.PinnedFarmList;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeHolder;
 
@@ -93,7 +94,8 @@ public class RecipeTreeScreen extends Screen {
         quantityBox = new EditBox(this.font, qxRight - 50 - 4 - 50, 8, 50, 18,
                 Component.translatable("jeichaincraft.screen.tree.quantity"));
         quantityBox.setValue(String.valueOf(quantity));
-        quantityBox.setFilter(s -> s.isEmpty() || s.matches("\\d{0,5}"));
+        // EditBox lost setFilter in 26.x: cap the length, non-digits are ignored by onQuantityChanged.
+        quantityBox.setMaxLength(5);
         quantityBox.setResponder(this::onQuantityChanged);
         addRenderableWidget(quantityBox);
         addRenderableWidget(stack);
@@ -216,12 +218,11 @@ public class RecipeTreeScreen extends Screen {
     // ─────────────────────────────────────────────────────────────── rendering
 
     @Override
-    public void render(GuiGraphics g, int mouseX, int mouseY, float partial) {
+    public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
         observeExecutor();
         if (root != null) root.refreshCounts(inventory);
 
-        renderBackground(g, mouseX, mouseY, partial);
-        super.render(g, mouseX, mouseY, partial);
+        super.extractRenderState(g, mouseX, mouseY, partial);
 
         drawHeader(g);
         Row hovered = drawTree(g, mouseX, mouseY);
@@ -234,11 +235,11 @@ public class RecipeTreeScreen extends Screen {
         }
     }
 
-    private void drawHeader(GuiGraphics g) {
-        g.drawCenteredString(font, this.title, this.width / 2, 13, 0xFFFFFFFF);
+    private void drawHeader(GuiGraphicsExtractor g) {
+        g.centeredText(font, this.title, this.width / 2, 13, 0xFFFFFFFF);
         // Qty label to the left of the EditBox
         if (quantityBox != null) {
-            g.drawString(font, Component.translatable("jeichaincraft.screen.tree.quantity"),
+            g.text(font, Component.translatable("jeichaincraft.screen.tree.quantity"),
                     quantityBox.getX() - 26, 13, 0xFFAAAAAA);
         }
     }
@@ -271,7 +272,7 @@ public class RecipeTreeScreen extends Screen {
         scroll = Math.max(0, Math.min(scroll, maxScroll()));
     }
 
-    private Row drawTree(GuiGraphics g, int mouseX, int mouseY) {
+    private Row drawTree(GuiGraphicsExtractor g, int mouseX, int mouseY) {
         int top = treeAreaTop();
         int bottom = treeAreaBottom();
         int right = treeRightEdge();
@@ -298,7 +299,7 @@ public class RecipeTreeScreen extends Screen {
         return hovered;
     }
 
-    private void drawScrollbar(GuiGraphics g, int x, int top, int bottom) {
+    private void drawScrollbar(GuiGraphicsExtractor g, int x, int top, int bottom) {
         int trackH = bottom - top;
         int contentH = contentHeight();
         if (contentH <= trackH) return; // nothing to scroll
@@ -309,7 +310,7 @@ public class RecipeTreeScreen extends Screen {
         g.fill(x, handleY, x + SCROLLBAR_WIDTH, handleY + handleH, 0xFFAAAAAA);
     }
 
-    private void drawNodeRow(GuiGraphics g, Row row, int x, int y, int rightEdge, boolean hover) {
+    private void drawNodeRow(GuiGraphicsExtractor g, Row row, int x, int y, int rightEdge, boolean hover) {
         int xOff = x + row.depth * INDENT;
         int color = statusColor(row.node.status);
 
@@ -322,14 +323,14 @@ public class RecipeTreeScreen extends Screen {
         // Expand/collapse triangle for non-leaves
         if (!row.node.isLeaf()) {
             String tri = row.node.expanded ? "v" : ">";
-            g.drawString(font, tri, xOff + STRIPE_WIDTH + 4, y + 8, 0xFFCCCCCC);
+            g.text(font, tri, xOff + STRIPE_WIDTH + 4, y + 8, 0xFFCCCCCC);
         }
 
         // Item icon
         int iconX = xOff + ICON_OFFSET;
         int iconY = y + (ROW_HEIGHT - ICON_SIZE) / 2;
-        g.renderItem(row.node.target, iconX, iconY);
-        g.renderItemDecorations(font, row.node.target, iconX, iconY);
+        g.item(row.node.target, iconX, iconY);
+        g.itemDecorations(font, row.node.target, iconX, iconY);
 
         // Label + count
         String label = row.node.target.getHoverName().getString();
@@ -340,55 +341,55 @@ public class RecipeTreeScreen extends Screen {
         } else {
             count = row.node.have + " / " + row.node.needed;
         }
-        g.drawString(font, label, xOff + TEXT_OFFSET, y + 4, 0xFFFFFFFF);
+        g.text(font, label, xOff + TEXT_OFFSET, y + 4, 0xFFFFFFFF);
         int countColor = switch (row.node.status) {
             case HAVE      -> 0xFF80FF80;
             case MISSING   -> 0xFFFF8080;
             case CYCLE     -> 0xFFFF80FF;
             default        -> 0xFFAAAAAA;
         };
-        g.drawString(font, count, xOff + TEXT_OFFSET, y + 14, countColor);
+        g.text(font, count, xOff + TEXT_OFFSET, y + 14, countColor);
 
         if (row.node.alternatives > 0) {
             String alt = "+" + row.node.alternatives;
             int altX = xOff + ALT_INDICATOR_X_OFFSET;
             g.fill(altX, y + 4, altX + ALT_INDICATOR_WIDTH, y + ROW_HEIGHT - 4, 0xFF1A3A60);
-            g.drawString(font, alt, altX + 4, y + 8, 0xFF80C0FF);
+            g.text(font, alt, altX + 4, y + 8, 0xFF80C0FF);
         }
 
         if (row.node.hasIngredientChoice()) {
             int tagX = xOff + TAG_INDICATOR_X_OFFSET;
             g.fill(tagX, y + 4, tagX + TAG_INDICATOR_WIDTH, y + ROW_HEIGHT - 4, 0xFF603A1A);
-            g.drawString(font, "#" + row.node.ingredientOptions.size(),
+            g.text(font, "#" + row.node.ingredientOptions.size(),
                     tagX + 4, y + 8, 0xFFFFC080);
         }
     }
 
-    private void drawSidebar(GuiGraphics g) {
+    private void drawSidebar(GuiGraphicsExtractor g) {
         int x = this.width - SIDEBAR_WIDTH;
         int y = HEADER_HEIGHT;
-        g.drawString(font, Component.translatable("jeichaincraft.screen.tree.base_resources"),
+        g.text(font, Component.translatable("jeichaincraft.screen.tree.base_resources"),
                 x, y, 0xFFFFFFFF);
 
         List<CraftPlanner.BaseResource> resources = CraftPlanner.baseResources(root);
         if (resources.isEmpty()) {
-            g.drawString(font, Component.translatable("jeichaincraft.screen.tree.no_base_resources"),
+            g.text(font, Component.translatable("jeichaincraft.screen.tree.no_base_resources"),
                     x, y + 14, 0xFF888888);
             return;
         }
 
         int row = y + 14;
         for (CraftPlanner.BaseResource res : resources) {
-            g.renderItem(res.stack(), x, row);
-            g.renderItemDecorations(font, res.stack(), x, row);
+            g.item(res.stack(), x, row);
+            g.itemDecorations(font, res.stack(), x, row);
             int color = res.missing() == 0 ? 0xFF60FF60 : 0xFFFF6060;
-            g.drawString(font, res.have() + "/" + res.needed(), x + 22, row + 4, color);
+            g.text(font, res.have() + "/" + res.needed(), x + 22, row + 4, color);
             row += 20;
             if (row > this.height - ACTION_BAR_HEIGHT - 4) break;
         }
     }
 
-    private void drawActionBar(GuiGraphics g) {
+    private void drawActionBar(GuiGraphicsExtractor g) {
         int barY = this.height - ACTION_BAR_HEIGHT;
         g.fill(0, barY, this.width, this.height, 0xC0000000);
         g.fill(0, barY, this.width, barY + 1, 0xFF505050);
@@ -410,7 +411,7 @@ public class RecipeTreeScreen extends Screen {
             g.fill(statusX, barTop, statusX + barW, barTop + barH, 0xFF202020);
             int fill = (int) (barW * (prog / (float) total));
             g.fill(statusX, barTop, statusX + fill, barTop + barH, 0xFF40FF40);
-            g.drawString(font, counter, statusX + barW + 6, barTop - 1, 0xFFFFFFFF);
+            g.text(font, counter, statusX + barW + 6, barTop - 1, 0xFFFFFFFF);
         } else if (!statusLine.getString().isEmpty()) {
             int color = active != null && active.state() == CraftExecutor.State.ABORTED
                     ? 0xFFFF6060
@@ -420,7 +421,7 @@ public class RecipeTreeScreen extends Screen {
             if (font.width(text) > maxW) {
                 text = font.plainSubstrByWidth(text, Math.max(0, maxW - font.width("..."))) + "...";
             }
-            g.drawString(font, text, statusX, statusY, color);
+            g.text(font, text, statusX, statusY, color);
         }
     }
 
@@ -434,7 +435,7 @@ public class RecipeTreeScreen extends Screen {
         };
     }
 
-    private void drawRecipeTooltip(GuiGraphics g, RecipeNode node, int mouseX, int mouseY) {
+    private void drawRecipeTooltip(GuiGraphicsExtractor g, RecipeNode node, int mouseX, int mouseY) {
         List<Component> lines = new ArrayList<>();
         lines.add(Component.literal(node.recipeId).withStyle(s -> s.withColor(0xFFFFAA40)));
         if (!node.children.isEmpty()) {
@@ -443,14 +444,16 @@ public class RecipeTreeScreen extends Screen {
                 lines.add(Component.literal("  - " + child.needed + " x " + ItemId.of(child.target)));
             }
         }
-        g.renderComponentTooltip(font, lines, mouseX, mouseY);
+        g.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
     }
 
     // ───────────────────────────────────────────────────────────────── input
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (super.mouseClicked(mouseX, mouseY, button)) return true;
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (super.mouseClicked(event, doubleClick)) return true;
+        double mouseX = event.x();
+        double mouseY = event.y();
 
         // Scrollbar click: jump-to or start drag
         int top = treeAreaTop();
@@ -501,21 +504,21 @@ public class RecipeTreeScreen extends Screen {
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
+    public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
         if (draggingScrollbar) {
-            jumpScrollTo(mouseY);
+            jumpScrollTo(event.y());
             return true;
         }
-        return super.mouseDragged(mouseX, mouseY, button, dx, dy);
+        return super.mouseDragged(event, dx, dy);
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+    public boolean mouseReleased(MouseButtonEvent event) {
         if (draggingScrollbar) {
             draggingScrollbar = false;
             return true;
         }
-        return super.mouseReleased(mouseX, mouseY, button);
+        return super.mouseReleased(event);
     }
 
     private void jumpScrollTo(double mouseY) {
@@ -526,23 +529,23 @@ public class RecipeTreeScreen extends Screen {
     }
 
     private void openPicker(RecipeNode node) {
-        ResourceLocation itemId = ItemId.of(node.target);
+        Identifier itemId = ItemId.of(node.target);
         List<RecipeHolder<?>> candidates = RecipeLookup.recipesProducing(node.target);
         if (candidates.size() <= 1) return;
-        Minecraft.getInstance().setScreen(new RecipePickerScreen(
+        Minecraft.getInstance().gui.setScreen(new RecipePickerScreen(
                 this, node.target, candidates, chosen -> {
-            prefs.remember(itemId, chosen.id());
+            prefs.remember(itemId, RecipeLookup.idOf(chosen));
             rebuildTree();
         }));
     }
 
     private void openIngredientPicker(RecipeNode node) {
         if (!node.hasIngredientChoice() || node.parentRecipeId == null) return;
-        ResourceLocation recipeId = node.parentRecipeId;
+        Identifier recipeId = node.parentRecipeId;
         List<Integer> slots = node.parentSlotIndices;
-        Minecraft.getInstance().setScreen(new IngredientPickerScreen(
+        Minecraft.getInstance().gui.setScreen(new IngredientPickerScreen(
                 this, node.ingredientOptions, chosen -> {
-            ResourceLocation pick = ItemId.of(chosen);
+            Identifier pick = ItemId.of(chosen);
             // Aggregated children carry every slot they fill. Writing the
             // preference to all of them keeps the swap consistent — picking
             // "chest" once on a recipe with four chest slots replaces every

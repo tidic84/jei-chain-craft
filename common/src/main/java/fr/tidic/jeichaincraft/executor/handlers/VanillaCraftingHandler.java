@@ -7,10 +7,10 @@ import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.AbstractCraftingMenu;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.InventoryMenu;
-import net.minecraft.world.inventory.RecipeBookMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeHolder;
@@ -18,22 +18,20 @@ import net.minecraft.world.item.crafting.RecipeHolder;
 /**
  * Drives the vanilla CraftingMenu (3x3 table) or the player's InventoryMenu (2x2).
  *
- * Strategy: piggyback on the vanilla recipe-book placement packet. With
- * craftAll=false, ServerPlaceRecipe adds exactly one more set on top of a
- * grid that already matches the recipe, so N packets sent in the same tick
- * stage exactly N sets (or fewer if ingredients run out). A single QUICK_MOVE
- * on the output then crafts every staged set in one server tick.
+ * Placement goes through JEI's recipe transfer (see {@link JeiRecipeTransfer}).
+ * JEI either places one set or fills the grid to the max, so batches are
+ * either a single craft or a full grid: a full grid holds at most
+ * {@link #FULL_GRID} sets, so it is only requested when at least that many
+ * crafts remain — the executor can then never overshoot.
  *
  * The staged count is read back from the synced grid (every ingredient slot
- * holds one item per set) so progress reflects what the server really placed.
- *
- * Output slot is always 0 for both InventoryMenu and CraftingMenu in 1.21.1.
+ * holds one item per set), and a single QUICK_MOVE on the output crafts every
+ * staged set in one server tick.
  */
 public class VanillaCraftingHandler implements CraftHandler {
 
-    private static final int OUTPUT_SLOT = 0;
-    /** Ingredient stacks cap at 64 per grid slot anyway. */
-    private static final int MAX_BATCH = 64;
+    /** Ingredient stacks cap at 64 per grid slot. */
+    private static final int FULL_GRID = 64;
 
     @Override
     public boolean canHandle(AbstractContainerMenu menu) {
@@ -43,36 +41,25 @@ public class VanillaCraftingHandler implements CraftHandler {
     @Override
     public int planBatch(RecipeHolder<?> recipe, AbstractContainerMenu menu, int remainingCrafts) {
         Player player = Minecraft.getInstance().player;
-        if (player == null) return 1;
-        int per = RecipeLookup.outputCount(recipe);
-        ItemStack result = recipe.value().getResultItem(player.level().registryAccess());
+        if (player == null || remainingCrafts < FULL_GRID) return 1;
         // A shift-click stops crafting once the inventory is full, leaving
-        // sets in the grid that we would wrongly count — cap by output room.
-        int room = outputRoom(menu, player.getInventory(), result);
-        int byRoom = room / Math.max(1, per);
-        return Math.max(1, Math.min(Math.min(remainingCrafts, MAX_BATCH), byRoom));
+        // sets in the grid that we would wrongly count — require output room.
+        ItemStack result = RecipeLookup.resultOf(recipe);
+        int per = Math.max(1, result.getCount());
+        return outputRoom(menu, player.getInventory(), result) >= FULL_GRID * per ? FULL_GRID : 1;
     }
 
     @Override
     public void placeIngredients(RecipeHolder<?> recipe, AbstractContainerMenu menu, int crafts) {
-        Minecraft mc = Minecraft.getInstance();
-        MultiPlayerGameMode gm = mc.gameMode;
-        if (gm == null) return;
-        // craftAll=false → one extra set per packet. craftAll=true would pack
-        // the grid to the max and overshoot the planned count.
-        for (int i = 0; i < crafts; i++) {
-            gm.handlePlaceRecipe(menu.containerId, recipe, /* craftAll = */ false);
-        }
+        JeiRecipeTransfer.place(recipe, menu, crafts > 1);
     }
 
     @Override
     public int stagedCrafts(AbstractContainerMenu menu, int requested) {
-        if (!(menu instanceof RecipeBookMenu<?, ?> rb)) return requested;
-        int gridSlots = rb.getGridWidth() * rb.getGridHeight() + 1;
+        if (!(menu instanceof AbstractCraftingMenu crafting)) return requested;
         int min = Integer.MAX_VALUE;
-        for (int i = 0; i < gridSlots && i < menu.slots.size(); i++) {
-            if (i == rb.getResultSlotIndex()) continue;
-            ItemStack s = menu.slots.get(i).getItem();
+        for (Slot slot : crafting.getInputGridSlots()) {
+            ItemStack s = slot.getItem();
             if (!s.isEmpty()) min = Math.min(min, s.getCount());
         }
         return min == Integer.MAX_VALUE ? 0 : min;
@@ -89,7 +76,12 @@ public class VanillaCraftingHandler implements CraftHandler {
         MultiPlayerGameMode gm = mc.gameMode;
         Player player = mc.player;
         if (gm == null || player == null) return;
-        gm.handleInventoryMouseClick(menu.containerId, OUTPUT_SLOT, 0, ClickType.QUICK_MOVE, player);
+        gm.handleContainerInput(menu.containerId, outputSlotIndex(menu), 0, ContainerInput.QUICK_MOVE, player);
+    }
+
+    @Override
+    public int outputSlotIndex(AbstractContainerMenu menu) {
+        return menu instanceof AbstractCraftingMenu crafting ? crafting.getResultSlot().index : 0;
     }
 
     /** Output items that fit in the main inventory + hotbar. */

@@ -1,6 +1,6 @@
 package fr.tidic.jeichaincraft.core;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.crafting.RecipeHolder;
 
 import java.util.HashMap;
@@ -17,22 +17,22 @@ import java.util.Map;
  * In-memory for MVP — persistence to disk is a follow-up.
  */
 public class PreferenceManager {
-    private final Map<ResourceLocation, ResourceLocation> chosenRecipe = new HashMap<>();
-    private final Map<String, ResourceLocation> chosenIngredient = new HashMap<>();
+    private final Map<Identifier, Identifier> chosenRecipe = new HashMap<>();
+    private final Map<String, Identifier> chosenIngredient = new HashMap<>();
 
-    public void remember(ResourceLocation itemId, ResourceLocation recipeId) {
+    public void remember(Identifier itemId, Identifier recipeId) {
         chosenRecipe.put(itemId, recipeId);
     }
 
-    public void forget(ResourceLocation itemId) {
+    public void forget(Identifier itemId) {
         chosenRecipe.remove(itemId);
     }
 
-    public void rememberIngredient(ResourceLocation recipeId, int slotIndex, ResourceLocation itemId) {
+    public void rememberIngredient(Identifier recipeId, int slotIndex, Identifier itemId) {
         chosenIngredient.put(ingredientKey(recipeId, slotIndex), itemId);
     }
 
-    public ResourceLocation ingredientPref(ResourceLocation recipeId, int slotIndex) {
+    public Identifier ingredientPref(Identifier recipeId, int slotIndex) {
         return chosenIngredient.get(ingredientKey(recipeId, slotIndex));
     }
 
@@ -45,17 +45,17 @@ public class PreferenceManager {
         return chosenRecipe.size() + chosenIngredient.size();
     }
 
-    public RecipeHolder<?> choose(ResourceLocation itemId, List<RecipeHolder<?>> candidates) {
-        ResourceLocation preferred = chosenRecipe.get(itemId);
+    public RecipeHolder<?> choose(Identifier itemId, List<RecipeHolder<?>> candidates) {
+        Identifier preferred = chosenRecipe.get(itemId);
         if (preferred != null) {
             for (RecipeHolder<?> h : candidates) {
-                if (h.id().equals(preferred)) return h;
+                if (RecipeLookup.idOf(h).equals(preferred)) return h;
             }
         }
         return candidates.get(0);
     }
 
-    private static String ingredientKey(ResourceLocation recipeId, int slotIndex) {
+    private static String ingredientKey(Identifier recipeId, int slotIndex) {
         return recipeId + ":" + slotIndex;
     }
 }

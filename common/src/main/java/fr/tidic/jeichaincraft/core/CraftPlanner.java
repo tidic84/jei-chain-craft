@@ -1,10 +1,8 @@
 package fr.tidic.jeichaincraft.core;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeHolder;
-import net.minecraft.world.item.crafting.RecipeManager;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -26,16 +24,12 @@ public class CraftPlanner {
     public record CraftStep(String recipeId, ItemStack output, int crafts) {
 
         public Optional<RecipeHolder<?>> resolve() {
-            Minecraft mc = Minecraft.getInstance();
-            if (mc.level == null) return Optional.empty();
-            RecipeManager rm = mc.level.getRecipeManager();
-            ResourceLocation rl = ResourceLocation.parse(recipeId);
-            return rm.byKey(rl).map(h -> (RecipeHolder<?>) h);
+            return RecipeLookup.byId(Identifier.parse(recipeId));
         }
     }
 
     public static List<BaseResource> baseResources(RecipeNode root) {
-        Map<ResourceLocation, BaseResource> agg = new LinkedHashMap<>();
+        Map<Identifier, BaseResource> agg = new LinkedHashMap<>();
         // Skip the root itself — it is the goal, not a raw input. Including it
         // duplicated the target in the sidebar whenever the root was a HAVE
         // leaf (user has enough already; tree has a single node).
@@ -43,9 +37,9 @@ public class CraftPlanner {
         return new ArrayList<>(agg.values());
     }
 
-    private static void collectLeaves(RecipeNode node, Map<ResourceLocation, BaseResource> agg) {
+    private static void collectLeaves(RecipeNode node, Map<Identifier, BaseResource> agg) {
         if (node.isLeaf()) {
-            ResourceLocation id = ItemId.of(node.target);
+            Identifier id = ItemId.of(node.target);
             BaseResource existing = agg.get(id);
             if (existing == null) {
                 agg.put(id, new BaseResource(node.target, node.needed, node.have));

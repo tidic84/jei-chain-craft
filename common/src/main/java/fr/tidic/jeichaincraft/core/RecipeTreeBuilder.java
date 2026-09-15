@@ -1,9 +1,8 @@
 package fr.tidic.jeichaincraft.core;
 
 import fr.tidic.jeichaincraft.JEIChainCraftMod;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
 
 import java.util.ArrayList;
@@ -51,7 +50,7 @@ public class RecipeTreeBuilder {
     }
 
     private RecipeNode build(ItemStack target, int needed, boolean isRoot,
-                             Set<ResourceLocation> path, int depth) {
+                             Set<Identifier> path, int depth) {
         RecipeNode node = new RecipeNode(target, needed);
         node.have = inventory.count(target);
         node.isRoot = isRoot;
@@ -69,7 +68,7 @@ public class RecipeTreeBuilder {
             return node;
         }
 
-        ResourceLocation itemId = ItemId.of(target);
+        Identifier itemId = ItemId.of(target);
         if (path.contains(itemId)) {
             node.status = NodeStatus.CYCLE;
             return node;
@@ -97,7 +96,7 @@ public class RecipeTreeBuilder {
 
         node.alternatives = usable.size() - 1;
         RecipeHolder<?> chosen = prefs.choose(itemId, usable);
-        node.recipeId = chosen.id().toString();
+        node.recipeId = RecipeLookup.idOf(chosen).toString();
         JEIChainCraftMod.LOGGER.info("  d={} chose {} for {} (alternatives={})",
                 depth, node.recipeId, itemId, node.alternatives);
 
@@ -111,10 +110,10 @@ public class RecipeTreeBuilder {
         // "have/1" checks that each look satisfied while the recipe as a
         // whole cannot be filled. Insertion order is preserved so the tree
         // still reads in slot order.
-        LinkedHashMap<ResourceLocation, IngredientGroup> groups = new LinkedHashMap<>();
+        LinkedHashMap<Identifier, IngredientGroup> groups = new LinkedHashMap<>();
         for (RecipeLookup.IngredientSlot slot : RecipeLookup.ingredientSlots(chosen)) {
             ItemStack ing = RecipeLookup.resolveSlot(chosen, slot, prefs, inventory);
-            ResourceLocation id = ItemId.of(ing);
+            Identifier id = ItemId.of(ing);
             IngredientGroup g = groups.get(id);
             if (g == null) {
                 groups.put(id, new IngredientGroup(ing, slot, ing.getCount()));
@@ -128,7 +127,7 @@ public class RecipeTreeBuilder {
         for (IngredientGroup g : groups.values()) {
             int ingNeed = g.totalPerCraft * node.crafts;
             RecipeNode child = build(g.stack, ingNeed, false, path, depth + 1);
-            child.parentRecipeId = chosen.id();
+            child.parentRecipeId = RecipeLookup.idOf(chosen);
             child.parentSlotIndices = g.slotIndices;
             if (g.firstSlot.isTag()) child.ingredientOptions = g.firstSlot.options();
             node.children.add(child);
@@ -162,11 +161,8 @@ public class RecipeTreeBuilder {
      * the stack. A slot that has at least one non-path option lets the resolver
      * pick that one, so it is not counted against the candidate.
      */
-    private static boolean alwaysCycles(RecipeHolder<?> holder, Set<ResourceLocation> path) {
-        for (Ingredient ing : holder.value().getIngredients()) {
-            if (ing.isEmpty()) continue;
-            ItemStack[] options = ing.getItems();
-            if (options.length == 0) continue;
+    private static boolean alwaysCycles(RecipeHolder<?> holder, Set<Identifier> path) {
+        for (List<ItemStack> options : RecipeLookup.slotOptions(holder)) {
             boolean hasEscape = false;
             for (ItemStack opt : options) {
                 if (!path.contains(ItemId.of(opt))) {

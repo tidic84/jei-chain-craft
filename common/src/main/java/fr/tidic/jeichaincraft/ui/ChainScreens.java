@@ -24,6 +24,6 @@ public final class ChainScreens {
 
     public static void openTreeFor(ItemStack output) {
         int qty = Math.max(1, output.getCount());
-        Minecraft.getInstance().setScreen(new RecipeTreeScreen(output, qty, INVENTORY, PREFS));
+        Minecraft.getInstance().gui.setScreen(new RecipeTreeScreen(output, qty, INVENTORY, PREFS));
     }
 }

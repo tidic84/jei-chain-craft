@@ -3,11 +3,11 @@ package fr.tidic.jeichaincraft.executor.handlers.compat;
 import fr.tidic.jeichaincraft.core.RecipeLookup;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -40,7 +40,7 @@ public final class NetworkCraftSupport {
      * never over-estimates what the network can supply.
      */
     private final Map<Item, Long> ledger = new HashMap<>();
-    private ResourceLocation ledgerRecipe;
+    private Identifier ledgerRecipe;
     private int ledgerContainer = -1;
 
     public NetworkCraftSupport(ToLongBiFunction<AbstractContainerMenu, Item> networkCount) {
@@ -49,9 +49,9 @@ public final class NetworkCraftSupport {
 
     public int planBatch(RecipeHolder<?> recipe, AbstractContainerMenu menu,
                          List<Integer> gridSlotIndices, int remainingCrafts) {
-        if (!recipe.id().equals(ledgerRecipe) || menu.containerId != ledgerContainer) {
+        if (!RecipeLookup.idOf(recipe).equals(ledgerRecipe) || menu.containerId != ledgerContainer) {
             ledger.clear();
-            ledgerRecipe = recipe.id();
+            ledgerRecipe = RecipeLookup.idOf(recipe);
             ledgerContainer = menu.containerId;
             // First craft of each step stays single: it stages the grid and
             // gives the network view time to catch up with earlier steps.
@@ -75,10 +75,9 @@ public final class NetworkCraftSupport {
             extraSets = Math.min(extraSets, k / e.getValue());
         }
 
-        Minecraft mc = Minecraft.getInstance();
-        int per = RecipeLookup.outputCount(recipe);
-        int maxStack = mc.level == null ? 64
-                : recipe.value().getResultItem(mc.level.registryAccess()).getMaxStackSize();
+        ItemStack result = RecipeLookup.resultOf(recipe);
+        int per = Math.max(1, result.getCount());
+        int maxStack = result.isEmpty() ? 64 : result.getMaxStackSize();
         // All outputs of a batch pile up on the cursor before being deposited.
         int byCursor = Math.max(1, maxStack / Math.max(1, per));
 
@@ -107,7 +106,7 @@ public final class NetworkCraftSupport {
         // Each PICKUP crafts once and stacks onto the cursor; the server has
         // refilled the grid before handling the next click.
         for (int i = 0; i < crafts; i++) {
-            gm.handleInventoryMouseClick(menu.containerId, resultSlot, 0, ClickType.PICKUP, player);
+            gm.handleContainerInput(menu.containerId, resultSlot, 0, ContainerInput.PICKUP, player);
         }
 
         // Drop the cursor stack into the first empty (or stack-able) player
@@ -115,7 +114,7 @@ public final class NetworkCraftSupport {
         Inventory inv = player.getInventory();
         int depositSlot = findDepositSlot(menu, expectedOutput, inv);
         if (depositSlot >= 0) {
-            gm.handleInventoryMouseClick(menu.containerId, depositSlot, 0, ClickType.PICKUP, player);
+            gm.handleContainerInput(menu.containerId, depositSlot, 0, ContainerInput.PICKUP, player);
         }
 
         // Shift-click every player-inv slot holding the crafted item over to
@@ -127,7 +126,7 @@ public final class NetworkCraftSupport {
             if (slot.container != inv) continue;
             ItemStack stack = slot.getItem();
             if (stack.isEmpty() || stack.getItem() != expectedOutput.getItem()) continue;
-            gm.handleInventoryMouseClick(menu.containerId, i, 0, ClickType.QUICK_MOVE, player);
+            gm.handleContainerInput(menu.containerId, i, 0, ContainerInput.QUICK_MOVE, player);
         }
     }
 

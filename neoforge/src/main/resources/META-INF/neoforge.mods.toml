@@ -15,6 +15,9 @@ Press C on any item to open a recursive crafting tree: see which base
 resources you need, what you can already craft, and run the whole chain.
 '''
 
+[[accessTransformers]]
+file="META-INF/accesstransformer.cfg"
+
 [[dependencies.${mod_id}]]
     modId="neoforge"
     type="required"

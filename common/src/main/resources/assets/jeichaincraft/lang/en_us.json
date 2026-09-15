@@ -1,5 +1,5 @@
 {
-  "key.categories.jeichaincraft": "JEI Chain Craft",
+  "key.category.jeichaincraft.main": "JEI Chain Craft",
   "key.jeichaincraft.open_chain": "Open chain tree",
   "jeichaincraft.button.chain.tooltip": "Open recursive crafting tree (or press C)",
   "jeichaincraft.button.execute": "Execute chain",

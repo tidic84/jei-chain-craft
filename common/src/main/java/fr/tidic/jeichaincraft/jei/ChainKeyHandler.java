@@ -8,6 +8,7 @@ import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
@@ -27,18 +28,12 @@ import java.util.function.Function;
  */
 public class ChainKeyHandler {
 
-    private static IJeiRuntime jeiRuntime;
-
-    public static void bindJeiRuntime(IJeiRuntime rt) {
-        jeiRuntime = rt;
-    }
-
     /**
      * Called by the loader entry points when a key is pressed in a screen.
      * Returns true when the key opened the chain tree and must be consumed.
      */
-    public static boolean onKeyPressed(Screen screen, int keyCode, int scanCode) {
-        if (!KeyBindings.matches(keyCode, scanCode)) return false;
+    public static boolean onKeyPressed(Screen screen, KeyEvent event) {
+        if (!KeyBindings.matches(event)) return false;
 
         ItemStack hovered = pickFromScreen(screen);
         JEIChainCraftMod.LOGGER.info("C pressed; pickHovered -> {} (count={})",
@@ -72,6 +67,7 @@ public class ChainKeyHandler {
     }
 
     private static ItemStack pickFromJei() {
+        IJeiRuntime jeiRuntime = JEIChainCraftPlugin.runtime();
         if (jeiRuntime == null) return ItemStack.EMPTY;
         ItemStack recipes = jeiRuntime.getRecipesGui()
                 .getIngredientUnderMouse(VanillaTypes.ITEM_STACK)

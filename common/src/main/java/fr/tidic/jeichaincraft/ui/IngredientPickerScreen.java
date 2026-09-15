@@ -1,7 +1,8 @@
 package fr.tidic.jeichaincraft.ui;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -36,7 +37,7 @@ public class IngredientPickerScreen extends Screen {
     @Override
     protected void init() {
         Button back = Button.builder(Component.translatable("gui.back"),
-                        b -> Minecraft.getInstance().setScreen(parent))
+                        b -> Minecraft.getInstance().gui.setScreen(parent))
                 .bounds(8, this.height - 28, 80, 20).build();
         addRenderableWidget(back);
     }
@@ -51,11 +52,10 @@ public class IngredientPickerScreen extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics g, int mouseX, int mouseY, float partial) {
-        renderBackground(g, mouseX, mouseY, partial);
-        super.render(g, mouseX, mouseY, partial);
+    public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
+        super.extractRenderState(g, mouseX, mouseY, partial);
 
-        g.drawCenteredString(font, this.title, this.width / 2, 16, 0xFFFFFFFF);
+        g.centeredText(font, this.title, this.width / 2, 16, 0xFFFFFFFF);
 
         int left = gridLeft();
         int top = gridTop();
@@ -69,8 +69,8 @@ public class IngredientPickerScreen extends Screen {
             if (hover) g.fill(cx - 1, cy - 1, cx + ICON_SIZE + 1, cy + ICON_SIZE + 1, 0xFF606080);
             else       g.fill(cx - 1, cy - 1, cx + ICON_SIZE + 1, cy + ICON_SIZE + 1, 0xFF202020);
             ItemStack opt = options.get(i);
-            g.renderItem(opt, cx + 1, cy + 1);
-            g.renderItemDecorations(font, opt, cx + 1, cy + 1);
+            g.item(opt, cx + 1, cy + 1);
+            g.itemDecorations(font, opt, cx + 1, cy + 1);
             if (hover) {
                 hovered = opt;
                 hoveredMx = mouseX;
@@ -78,13 +78,15 @@ public class IngredientPickerScreen extends Screen {
             }
         }
         if (hovered != null) {
-            g.renderTooltip(font, hovered, hoveredMx, hoveredMy);
+            g.setTooltipForNextFrame(font, hovered, hoveredMx, hoveredMy);
         }
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (super.mouseClicked(mouseX, mouseY, button)) return true;
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (super.mouseClicked(event, doubleClick)) return true;
+        double mouseX = event.x();
+        double mouseY = event.y();
         int left = gridLeft();
         int top = gridTop();
         for (int i = 0; i < options.size(); i++) {
@@ -93,7 +95,7 @@ public class IngredientPickerScreen extends Screen {
             if (mouseX >= cx && mouseX < cx + ICON_SIZE
                     && mouseY >= cy && mouseY < cy + ICON_SIZE) {
                 onChosen.accept(options.get(i));
-                Minecraft.getInstance().setScreen(parent);
+                Minecraft.getInstance().gui.setScreen(parent);
                 return true;
             }
         }

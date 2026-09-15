@@ -2,7 +2,8 @@ package fr.tidic.jeichaincraft.ui;
 
 import fr.tidic.jeichaincraft.core.RecipeLookup;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -48,17 +49,16 @@ public class RecipePickerScreen extends Screen {
     @Override
     protected void init() {
         Button back = Button.builder(Component.translatable("gui.back"),
-                        b -> Minecraft.getInstance().setScreen(parent))
+                        b -> Minecraft.getInstance().gui.setScreen(parent))
                 .bounds(8, this.height - 28, 80, 20).build();
         addRenderableWidget(back);
     }
 
     @Override
-    public void render(GuiGraphics g, int mouseX, int mouseY, float partial) {
-        renderBackground(g, mouseX, mouseY, partial);
-        super.render(g, mouseX, mouseY, partial);
+    public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
+        super.extractRenderState(g, mouseX, mouseY, partial);
 
-        g.drawCenteredString(font, this.title, this.width / 2, 8, 0xFFFFFFFF);
+        g.centeredText(font, this.title, this.width / 2, 8, 0xFFFFFFFF);
 
         int listX = 16;
         int listY = 28 - scroll;
@@ -72,33 +72,35 @@ public class RecipePickerScreen extends Screen {
         }
     }
 
-    private void drawRow(GuiGraphics g, RecipeHolder<?> holder, int x, int y, int w,
+    private void drawRow(GuiGraphicsExtractor g, RecipeHolder<?> holder, int x, int y, int w,
                          int mouseX, int mouseY) {
         boolean hover = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + ROW_HEIGHT;
         int bg = hover ? 0xFF303860 : 0xFF202020;
         g.fill(x, y, x + w, y + ROW_HEIGHT, bg);
 
         // Output icon
-        g.renderItem(target, x + 4, y + 4);
-        g.renderItemDecorations(font, target, x + 4, y + 4);
+        g.item(target, x + 4, y + 4);
+        g.itemDecorations(font, target, x + 4, y + 4);
 
         // Recipe id
-        g.drawString(font, holder.id().toString(), x + 26, y + 6, 0xFFFFFFFF);
+        g.text(font, RecipeLookup.idOf(holder).toString(), x + 26, y + 6, 0xFFFFFFFF);
 
         // Ingredients strip
         int ingX = x + 26;
         int ingY = y + 20;
         for (ItemStack ing : RecipeLookup.ingredientsOf(holder)) {
-            g.renderItem(ing, ingX, ingY);
-            g.renderItemDecorations(font, ing, ingX, ingY);
+            g.item(ing, ingX, ingY);
+            g.itemDecorations(font, ing, ingX, ingY);
             ingX += 18;
             if (ingX > x + w - 20) break;
         }
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (super.mouseClicked(mouseX, mouseY, button)) return true;
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (super.mouseClicked(event, doubleClick)) return true;
+        double mouseX = event.x();
+        double mouseY = event.y();
 
         int listY = 28 - scroll;
         int rowW = this.width - 32;
@@ -106,7 +108,7 @@ public class RecipePickerScreen extends Screen {
             if (mouseX >= 16 && mouseX <= 16 + rowW
                     && mouseY >= listY && mouseY <= listY + ROW_HEIGHT) {
                 onChosen.accept(holder);
-                Minecraft.getInstance().setScreen(parent);
+                Minecraft.getInstance().gui.setScreen(parent);
                 return true;
             }
             listY += ROW_HEIGHT + ROW_PADDING;

@@ -4,9 +4,9 @@ import fr.tidic.jeichaincraft.JEIChainCraftMod;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
@@ -19,13 +19,13 @@ import java.util.List;
  * Positioned at the top-left so it does not clash with JEI's right-side panel.
  * Hidden when the pinned list is empty or the chat / debug screens are open.
  *
- * Registered by the loader entry points (NeoForge GUI layer above the
- * experience bar, Fabric HudRenderCallback).
+ * Registered by the loader entry points (NeoForge GUI layer / Fabric HUD
+ * element, both after the experience level).
  */
 public final class FarmListHud {
 
-    public static final ResourceLocation LAYER_ID =
-            ResourceLocation.fromNamespaceAndPath(JEIChainCraftMod.MODID, "farm_list");
+    public static final Identifier LAYER_ID =
+            Identifier.fromNamespaceAndPath(JEIChainCraftMod.MODID, "farm_list");
 
     private static final int ROW_HEIGHT = 20;
     private static final int PAD = 4;
@@ -33,11 +33,11 @@ public final class FarmListHud {
 
     private FarmListHud() {}
 
-    public static void render(GuiGraphics g, DeltaTracker delta) {
+    public static void render(GuiGraphicsExtractor g, DeltaTracker delta) {
         if (PinnedFarmList.isEmpty()) return;
         Minecraft mc = Minecraft.getInstance();
-        if (mc.options.hideGui) return;
-        if (mc.screen != null) return; // hide while any screen is open
+        if (mc.gui.hud.isHidden()) return;
+        if (mc.gui.screen() != null) return; // hide while any screen is open
 
         Font font = mc.font;
         List<PinnedFarmList.DisplayEntry> entries = PinnedFarmList.snapshot();
@@ -54,7 +54,7 @@ public final class FarmListHud {
 
         // Title
         Component title = Component.translatable("jeichaincraft.hud.title");
-        g.drawString(font, title, x + PAD, y + PAD + 2, 0xFFFFFFFF);
+        g.text(font, title, x + PAD, y + PAD + 2, 0xFFFFFFFF);
 
         int rowY = y + PAD + ROW_HEIGHT;
         int satisfied = 0;
@@ -70,11 +70,11 @@ public final class FarmListHud {
         }
     }
 
-    private static void drawRow(GuiGraphics g, Font font, PinnedFarmList.DisplayEntry entry,
+    private static void drawRow(GuiGraphicsExtractor g, Font font, PinnedFarmList.DisplayEntry entry,
                                 int x, int y, int width) {
         ItemStack stack = entry.stack();
-        g.renderItem(stack, x, y);
-        g.renderItemDecorations(font, stack, x, y);
+        g.item(stack, x, y);
+        g.itemDecorations(font, stack, x, y);
 
         String name = stack.getHoverName().getString();
         if (font.width(name) > width - 60) {
@@ -82,12 +82,12 @@ public final class FarmListHud {
         }
 
         int textColor = entry.satisfied() ? 0xFF808080 : 0xFFFFFFFF;
-        g.drawString(font, name, x + 22, y + 1, textColor);
+        g.text(font, name, x + 22, y + 1, textColor);
 
         String count = entry.have() + "/" + entry.needed();
         int countColor = entry.satisfied() ? 0xFF60FF60 : 0xFFFF8060;
         int countX = x + width - font.width(count);
-        g.drawString(font, count, countX, y + 9, countColor);
+        g.text(font, count, countX, y + 9, countColor);
 
         if (entry.satisfied()) {
             // Strike-through line

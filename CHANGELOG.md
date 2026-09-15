@@ -3,6 +3,10 @@
 ## 0.3.0
 
 ### Added
+- **Minecraft 26.2 support** (NeoForge and Fabric), on the `main` branch;
+  1.21.1 builds come from the `1.21.1` branch. On 26.2, recipes are read and
+  placed through JEI (the server no longer sends recipes to the client), so
+  JEI must also be installed on the server — always true in singleplayer.
 - **Fabric support** (Minecraft 1.21.1): the mod ships a Fabric jar alongside
   the NeoForge one, with the same features. Requires Fabric API and JEI for
   Fabric.

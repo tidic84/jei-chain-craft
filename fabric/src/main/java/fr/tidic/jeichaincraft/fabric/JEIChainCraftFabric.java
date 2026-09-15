@@ -7,10 +7,12 @@ import fr.tidic.jeichaincraft.hud.FarmListHud;
 import fr.tidic.jeichaincraft.jei.ChainKeyHandler;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
+import net.minecraft.client.KeyMapping;
 
 /**
  * Fabric entry point: wires the loader-agnostic code in :common to Fabric
@@ -26,14 +28,15 @@ public class JEIChainCraftFabric implements ClientModInitializer {
         // hoveredSlot is made public by jeichaincraft.accesswidener.
         ChainKeyHandler.setHoveredSlotLookup(screen -> screen.hoveredSlot);
 
-        KeyBindingHelper.registerKeyBinding(KeyBindings.OPEN_CHAIN);
+        KeyMapping.Category.register(KeyBindings.CATEGORY.id());
+        KeyMappingHelper.registerKeyMapping(KeyBindings.OPEN_CHAIN);
         ClientTickEvents.END_CLIENT_TICK.register(client -> CraftExecutor.clientTick());
-        HudRenderCallback.EVENT.register(FarmListHud::render);
+        HudElementRegistry.attachElementAfter(VanillaHudElements.EXPERIENCE_LEVEL, FarmListHud.LAYER_ID, FarmListHud::render);
 
         // Fabric has no global "key pressed in a screen" event: hook every
         // screen as it opens. Returning false from allowKeyPress cancels it.
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) ->
-                ScreenKeyboardEvents.allowKeyPress(screen).register((s, key, scancode, modifiers) ->
-                        !ChainKeyHandler.onKeyPressed(s, key, scancode)));
+                ScreenKeyboardEvents.allowKeyPress(screen).register((s, event) ->
+                        !ChainKeyHandler.onKeyPressed(s, event)));
     }
 }
